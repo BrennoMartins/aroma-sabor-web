@@ -1,5 +1,6 @@
 import { Button } from '../../shared/components/Button/Button'
 import { Modal } from '../../shared/components/Modal/Modal'
+import styles from './CheckoutModal.module.css'
 
 type CheckoutModalProps = {
   isOpen: boolean
@@ -28,46 +29,37 @@ export function CheckoutModal({
   return (
     <Modal
       open={isOpen}
-      title="Fechar atendimento"
+      title="Confirmar venda"
       onClose={onCancel}
       actions={
         <>
           <Button variant="secondary" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button variant="success" onClick={onConfirm} loading={isSubmitting}>
+          <Button variant="success" onClick={onConfirm} loading={isSubmitting} autoFocus>
             Confirmar Venda
           </Button>
         </>
       }
     >
-      <div className="checkout-modal"
-      >
-        <p className="checkout-modal__eyebrow">Confirmacao de venda</p>
-        <p className="checkout-modal__description">
-          Revise os itens e confirme o envio da venda para o backend.
+      <div className={styles.root}>
+        <p className={styles.eyebrow}>Fechamento rapido</p>
+        <p className={styles.description}>
+          Revise o resumo e confirme o envio do pedido para o backend do Aroma Sabor OS.
         </p>
 
-        <div className="checkout-modal__summary">
-          <div>
-            <span className="checkout-modal__label">Itens</span>
+        <div className={styles.summary}>
+          <div className={styles.summaryCard}>
+            <span className={styles.label}>Itens</span>
             <strong>{totalItems}</strong>
           </div>
-          <div>
-            <span className="checkout-modal__label">Total</span>
+          <div className={styles.summaryCard}>
+            <span className={styles.label}>Total</span>
             <strong>{formatCurrency(total)}</strong>
           </div>
         </div>
 
-        <div className="payment-placeholder">
-          <span className="payment-placeholder__label">Pagamentos</span>
-          <div className="payment-placeholder__chips">
-            <span className="payment-chip">Dinheiro</span>
-            <span className="payment-chip">Cartao</span>
-            <span className="payment-chip">PIX</span>
-          </div>
-        </div>
-
+        <p className={styles.footnote}>Atalho: pressione ESC para voltar ao carrinho.</p>
       </div>
     </Modal>
   )

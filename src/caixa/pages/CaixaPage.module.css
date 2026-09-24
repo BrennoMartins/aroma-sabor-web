@@ -1,0 +1,68 @@
+.page {
+  position: relative;
+}
+
+.scannerAnchor {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(290px, 1fr);
+  gap: 20px;
+  margin-top: 24px;
+  align-items: start;
+}
+
+.inlineStatus {
+  margin-top: 18px;
+  color: var(--color-text-secondary);
+}
+
+.successNotice {
+  margin-top: 16px;
+  padding: 0 18px;
+  min-height: 0;
+  max-height: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: transparent;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    max-height 180ms ease,
+    padding 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.successNoticeVisible {
+  padding-block: 14px;
+  max-height: 72px;
+  border-color: color-mix(in srgb, var(--color-success) 42%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-success) 14%, transparent),
+    color-mix(in srgb, var(--color-surface) 94%, transparent)
+  );
+  color: var(--color-text-primary);
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (max-width: 900px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+}

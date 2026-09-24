@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AxiosError } from 'axios'
 import { CartTable } from '../components/CartTable'
 import { CheckoutModal } from '../components/CheckoutModal'
@@ -12,6 +12,7 @@ import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
 import { ConfirmDialog } from '../../shared/components/ConfirmDialog/ConfirmDialog'
 import { loadingOverlay } from '../../shared/components/LoadingOverlay/loading-overlay-store'
 import { toast } from '../../shared/components/Toast/toast-store'
+import styles from './CaixaPage.module.css'
 
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
@@ -30,10 +31,14 @@ function isTypingTarget(target: EventTarget | null) {
 
 export function CaixaPage() {
   const { lastBarcode, onScan } = useBarcodeScanner()
+  const queryClient = useQueryClient()
   const [successSignal, setSuccessSignal] = useState(0)
   const [errorSignal, setErrorSignal] = useState(0)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
+  const [isSaleSuccessVisible, setIsSaleSuccessVisible] = useState(false)
+  const scannerAnchorRef = useRef<HTMLDivElement | null>(null)
+  const successTimeoutRef = useRef<number | null>(null)
   const {
     items,
     total,
@@ -44,6 +49,13 @@ export function CaixaPage() {
     removeItem,
     clearCart,
   } = useCart()
+  const isAnyModalOpen = isCheckoutOpen || isCancelDialogOpen
+
+  const focusScannerAnchor = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      scannerAnchorRef.current?.focus()
+    })
+  }, [])
 
   const productLookup = useMutation({
     mutationFn: getByBarcode,
@@ -62,6 +74,10 @@ export function CaixaPage() {
   })
 
   const handleScan = useEffectEvent((barcode: string) => {
+    if (isAnyModalOpen) {
+      return
+    }
+
     productLookup.mutate(barcode)
   })
 
@@ -71,8 +87,10 @@ export function CaixaPage() {
       loadingOverlay.show('Concluindo venda...')
     },
     onSuccess: () => {
+      void queryClient.invalidateQueries()
       toast.success('Venda concluida.')
       setSuccessSignal((currentValue) => currentValue + 1)
+      setIsSaleSuccessVisible(true)
       clearCart()
       setIsCheckoutOpen(false)
     },
@@ -108,6 +126,21 @@ export function CaixaPage() {
     setIsCancelDialogOpen(false)
   }, [clearCart, items.length])
 
+  const handleIncrementItem = useCallback((productId: number) => {
+    incrementItem(productId)
+    focusScannerAnchor()
+  }, [focusScannerAnchor, incrementItem])
+
+  const handleDecrementItem = useCallback((productId: number) => {
+    decrementItem(productId)
+    focusScannerAnchor()
+  }, [decrementItem, focusScannerAnchor])
+
+  const handleRemoveItem = useCallback((productId: number) => {
+    removeItem(productId)
+    focusScannerAnchor()
+  }, [focusScannerAnchor, removeItem])
+
   useEffect(() => {
     const unsubscribe = onScan((barcode) => {
       handleScan(barcode)
@@ -119,8 +152,44 @@ export function CaixaPage() {
   }, [onScan])
 
   useEffect(() => {
+    if (isAnyModalOpen) {
+      return
+    }
+
+    focusScannerAnchor()
+  }, [focusScannerAnchor, isAnyModalOpen])
+
+  useEffect(() => {
+    if (!isSaleSuccessVisible) {
+      return
+    }
+
+    if (successTimeoutRef.current) {
+      window.clearTimeout(successTimeoutRef.current)
+    }
+
+    successTimeoutRef.current = window.setTimeout(() => {
+      setIsSaleSuccessVisible(false)
+    }, 1600)
+
+    return () => {
+      if (successTimeoutRef.current) {
+        window.clearTimeout(successTimeoutRef.current)
+      }
+    }
+  }, [isSaleSuccessVisible])
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        window.clearTimeout(successTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target)) {
+      if (isTypingTarget(event.target) || isAnyModalOpen) {
         return
       }
 
@@ -137,11 +206,6 @@ export function CaixaPage() {
       if (event.key === 'Escape') {
         event.preventDefault()
 
-        if (isCheckoutOpen) {
-          setIsCheckoutOpen(false)
-          return
-        }
-
         if (items.length > 0) {
           setIsCancelDialogOpen(true)
         }
@@ -153,30 +217,42 @@ export function CaixaPage() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [handleClearCart, isCheckoutOpen, items.length])
+  }, [isAnyModalOpen, items.length])
 
   return (
-    <section className="page-card caixa-page">
+    <section className={["page-card", styles.page].join(' ')}>
+      <div ref={scannerAnchorRef} tabIndex={-1} aria-hidden="true" className={styles.scannerAnchor} />
+
       <h2 className="page-card__title">Caixa PDV</h2>
 
       <ScannerStatus lastBarcode={lastBarcode} successSignal={successSignal} errorSignal={errorSignal} />
 
       <p className="page-card__description">
-        Escaneie produtos com o Honeywell Orbit para buscar no backend e montar o carrinho.
+        Escaneie produtos com o Honeywell Orbit para montar o carrinho e concluir a venda sem sair do fluxo.
       </p>
 
-      <div className="caixa-page__content">
+      <div
+        className={[
+          styles.successNotice,
+          isSaleSuccessVisible ? styles.successNoticeVisible : '',
+        ].filter(Boolean).join(' ')}
+        aria-live="polite"
+      >
+        Venda concluida. Caixa pronto para a proxima leitura.
+      </div>
+
+      <div className={styles.content}>
         <CartTable
           items={items}
-          onIncrement={incrementItem}
-          onDecrement={decrementItem}
-          onRemove={removeItem}
+          onIncrement={handleIncrementItem}
+          onDecrement={handleDecrementItem}
+          onRemove={handleRemoveItem}
         />
 
         <TotalPanel total={total} totalItems={totalItems} />
       </div>
 
-      {productLookup.isPending ? <p className="inline-status">Buscando produto...</p> : null}
+      {productLookup.isPending ? <p className={styles.inlineStatus}>Buscando produto...</p> : null}
 
       <CheckoutModal
         isOpen={isCheckoutOpen}

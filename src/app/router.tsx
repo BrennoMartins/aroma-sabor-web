@@ -4,7 +4,7 @@ import { CategoryPage } from '../category/pages/CategoryPage'
 import { InventoryPage } from '../inventory/pages/InventoryPage'
 import { ProductPage } from '../product/pages/ProductPage'
 import { SalesPage } from '../sales/pages/SalesPage'
-import { MainLayout } from '../shared/layout/MainLayout/MainLayout'
+import { MainLayout } from '../shared/layout/MainLayout'
 
 export function AppRouter() {
   return useRoutes([

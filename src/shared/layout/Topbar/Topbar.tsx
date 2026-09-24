@@ -1,12 +1,24 @@
-import { Clock3, Radio, ShieldEllipsis } from 'lucide-react'
+import { Clock3, Menu, Radio } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useBarcodeScanner } from '../../../scanner/useBarcodeScanner'
 import { Badge } from '../../components/Badge/Badge'
+import { Button } from '../../components/Button/Button'
+import { CloseMarketModal } from '../../../turn/components/CloseMarketModal'
+import { MarketStatus } from '../../../turn/components/MarketStatus'
+import { OpenMarketModal } from '../../../turn/components/OpenMarketModal'
+import { formatMarketElapsedTime, useMarketSession } from '../../../turn/hooks/useMarketSession'
+import styles from './Topbar.module.css'
 
-export function Topbar() {
-  const { lastBarcode, onScan } = useBarcodeScanner()
+type TopbarProps = {
+  isSidebarOpen: boolean
+  onSidebarToggle: () => void
+}
+
+export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
   const [currentTime, setCurrentTime] = useState(() => new Date())
-  const [scannerPulse, setScannerPulse] = useState(false)
+  const [isOpenMarketModalVisible, setIsOpenMarketModalVisible] = useState(false)
+  const [isCloseMarketModalVisible, setIsCloseMarketModalVisible] = useState(false)
+
+  const { isOpen, elapsedTime, openMarket, closeMarket } = useMarketSession()
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -18,51 +30,80 @@ export function Topbar() {
     }
   }, [])
 
-  useEffect(() => {
-    const unsubscribe = onScan(() => {
-      setScannerPulse(true)
-      window.setTimeout(() => {
-        setScannerPulse(false)
-      }, 300)
-    })
+  const handleOpenMarket = () => {
+    openMarket()
+    setIsOpenMarketModalVisible(false)
+  }
 
-    return () => {
-      unsubscribe()
-    }
-  }, [onScan])
+  const handleCloseMarket = () => {
+    closeMarket()
+    setIsCloseMarketModalVisible(false)
+  }
 
   return (
-    <header className="app-topbar">
-      <div className="app-topbar__identity">
-        <img src="/icons/logo-badge.svg" alt="Logo Madalena Aroma e Sabor" className="app-brandmark app-brandmark--topbar" />
-        <div>
-          <p className="app-topbar__eyebrow">Operacao em tempo real</p>
-          <h1 className="app-topbar__title">Aroma Sabor OS</h1>
-        </div>
-      </div>
+    <>
+      <header className={styles.topbar}>
+        <div className={styles.leading}>
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<Menu size={18} aria-hidden="true" />}
+            className={styles.menuButton}
+            aria-label={isSidebarOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
+            aria-expanded={isSidebarOpen}
+            onClick={onSidebarToggle}
+          >
+            Menu
+          </Button>
 
-      <div className="app-topbar__meta">
-        <div className={scannerPulse ? 'topbar-chip topbar-chip--pulse' : 'topbar-chip'}>
-          <Radio size={16} />
-          <div>
-            <span>Scanner ativo</span>
-            <strong>{lastBarcode ?? 'Aguardando leitura'}</strong>
+          <div className={styles.identity}>
+            <span className={styles.eyebrow}>Sistema operacional do mercadinho</span>
+            <strong className={styles.title}>Aroma Sabor OS</strong>
           </div>
         </div>
 
-        <div className="topbar-chip">
-          <Clock3 size={16} />
-          <div>
-            <span>Horario</span>
-            <strong>{currentTime.toLocaleTimeString('pt-BR')}</strong>
+        <div className={styles.statusGroup}>
+          <div className={styles.statusCard} aria-label="Relogio do sistema">
+            <Clock3 size={16} aria-hidden="true" />
+            <div>
+              <span className={styles.statusLabel}>Horario</span>
+              <strong>{currentTime.toLocaleTimeString('pt-BR')}</strong>
+            </div>
+          </div>
+
+          <div className={styles.statusCard} aria-label="Status do scanner">
+            <Radio size={16} aria-hidden="true" className={styles.statusSuccessIcon} />
+            <div>
+              <span className={styles.statusLabel}>Scanner</span>
+              <Badge variant="success">Scanner Conectado</Badge>
+            </div>
+          </div>
+
+          <div className={styles.marketCard} aria-label="Status do mercado">
+            <MarketStatus isOpen={isOpen} elapsedTime={formatMarketElapsedTime(elapsedTime)} />
+            <Button
+              type="button"
+              variant={isOpen ? 'danger' : 'success'}
+              onClick={() => (isOpen ? setIsCloseMarketModalVisible(true) : setIsOpenMarketModalVisible(true))}
+            >
+              {isOpen ? 'Fechar Mercado' : 'Abrir Mercado'}
+            </Button>
           </div>
         </div>
+      </header>
 
-        <div className="topbar-training">
-          <ShieldEllipsis size={16} />
-          <Badge variant="success">Mercado Aberto</Badge>
-        </div>
-      </div>
-    </header>
+      <OpenMarketModal
+        open={isOpenMarketModalVisible}
+        onClose={() => setIsOpenMarketModalVisible(false)}
+        onConfirm={handleOpenMarket}
+      />
+
+      <CloseMarketModal
+        open={isCloseMarketModalVisible}
+        duration={formatMarketElapsedTime(elapsedTime)}
+        onClose={() => setIsCloseMarketModalVisible(false)}
+        onConfirm={handleCloseMarket}
+      />
+    </>
   )
 }

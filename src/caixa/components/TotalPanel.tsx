@@ -1,4 +1,5 @@
 import { Card } from '../../shared/components/Card/Card'
+import styles from './TotalPanel.module.css'
 
 type TotalPanelProps = {
   total: number
@@ -14,37 +15,29 @@ function formatCurrency(value: number) {
 
 export function TotalPanel({ total, totalItems }: TotalPanelProps) {
   return (
-    <Card title="Resumo" className="total-panel">
-
-      <div className="total-panel__metric">
-        <span className="total-panel__label">Total</span>
-        <strong className="total-panel__amount">{formatCurrency(total)}</strong>
+    <Card title="Resumo da venda" className={styles.card}>
+      <div className={styles.metric}>
+        <span className={styles.label}>Total</span>
+        <strong className={styles.amount}>{formatCurrency(total)}</strong>
       </div>
 
-      <div className="total-panel__metric">
-        <span className="total-panel__label">Itens</span>
-        <strong className="total-panel__count">{totalItems}</strong>
+      <div className={styles.metric}>
+        <span className={styles.label}>Itens</span>
+        <strong className={styles.count}>{totalItems}</strong>
       </div>
 
-      <div className="shortcut-list">
-        <div className="shortcut-list__item">
+      <div className={styles.shortcutList}>
+        <div className={styles.shortcutItem}>
           <span>F9</span>
           <strong>Finalizar</strong>
         </div>
-        <div className="shortcut-list__item">
+        <div className={styles.shortcutItem}>
           <span>ESC</span>
           <strong>Cancelar</strong>
         </div>
       </div>
 
-      <div className="payment-placeholder">
-        <span className="payment-placeholder__label">Pagamentos</span>
-        <div className="payment-placeholder__chips">
-          <span className="payment-chip">Dinheiro</span>
-          <span className="payment-chip">Cartao</span>
-          <span className="payment-chip">PIX</span>
-        </div>
-      </div>
+      <p className={styles.hint}>Use o scanner e o teclado para concluir a venda sem tirar as maos do caixa.</p>
     </Card>
   )
 }

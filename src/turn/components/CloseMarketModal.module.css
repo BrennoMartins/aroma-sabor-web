@@ -1,0 +1,16 @@
+.body {
+  display: grid;
+  gap: 8px;
+}
+
+.message,
+.duration {
+  margin: 0;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+.duration {
+  color: var(--color-text-secondary);
+  font-size: 0.96rem;
+}

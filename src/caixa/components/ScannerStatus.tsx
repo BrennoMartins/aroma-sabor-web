@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
+import styles from './ScannerStatus.module.css'
 
 type AudioContextWithWebkit = typeof window & {
   webkitAudioContext?: typeof AudioContext
@@ -130,23 +131,21 @@ export function ScannerStatus({ lastBarcode, successSignal, errorSignal }: Scann
 
   return (
     <section
-      className={
-        flashVariant === 'success'
-          ? 'scanner-status scanner-status--success'
-          : flashVariant === 'error'
-            ? 'scanner-status scanner-status--error'
-            : 'scanner-status'
-      }
+      className={[
+        styles.root,
+        flashVariant === 'success' ? styles.success : '',
+        flashVariant === 'error' ? styles.error : '',
+      ].filter(Boolean).join(' ')}
       aria-live="polite"
     >
-      <div className="scanner-status__row">
-        <span className="scanner-status__dot" />
+      <div className={styles.row}>
+        <span className={styles.dot} />
         <strong>Scanner conectado</strong>
       </div>
 
-      <div className="scanner-result scanner-result--compact">
-        <span className="scanner-result__label">Ultimo codigo lido</span>
-        <strong className="scanner-result__value">{lastBarcode ?? 'Nenhuma leitura ainda.'}</strong>
+      <div className={styles.result}>
+        <span className={styles.label}>Ultimo codigo lido</span>
+        <strong className={styles.value}>{lastBarcode ?? 'Nenhuma leitura ainda.'}</strong>
       </div>
     </section>
   )

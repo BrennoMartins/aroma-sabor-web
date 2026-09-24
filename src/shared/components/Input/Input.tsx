@@ -1,4 +1,5 @@
-import { forwardRef, type InputHTMLAttributes } from 'react'
+import { forwardRef, useId, type InputHTMLAttributes } from 'react'
+import styles from './Input.module.css'
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string
@@ -9,13 +10,31 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { label, error, className, id, ...props },
   ref,
 ) {
-  const inputId = id ?? props.name
+  const generatedId = useId()
+  const inputId = id ?? props.name ?? generatedId
+  const errorId = `${inputId}-error`
+  const inputClassName = [styles.input, className].filter(Boolean).join(' ')
 
   return (
-    <label className="ui-input-group" htmlFor={inputId}>
-      {label ? <span className="ui-input-group__label">{label}</span> : null}
-      <input ref={ref} {...props} id={inputId} className={className ? `ui-input ${className}` : 'ui-input'} />
-      {error ? <span className="ui-input-group__error">{error}</span> : null}
-    </label>
+    <div className={styles.group}>
+      {label ? (
+        <label className={styles.label} htmlFor={inputId}>
+          {label}
+        </label>
+      ) : null}
+      <input
+        ref={ref}
+        {...props}
+        id={inputId}
+        className={inputClassName}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+      />
+      {error ? (
+        <span id={errorId} className={styles.error} role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
   )
 })

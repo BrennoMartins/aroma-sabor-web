@@ -1,0 +1,27 @@
+.logo {
+  display: inline-block;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-brand-primary) 18%, var(--color-surface)),
+    var(--color-surface)
+  );
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.text {
+  font-size: var(--font-caption-size);
+  line-height: var(--font-caption-line-height);
+  font-weight: var(--font-weight-semibold);
+}
