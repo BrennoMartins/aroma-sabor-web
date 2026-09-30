@@ -19,23 +19,30 @@ function toCartItem(product: Product): CartItem {
   }
 }
 
+export function addProductToCart(currentItems: CartItem[], product: Product): CartItem[] {
+  const existingItem = currentItems.find((item) => item.productId === product.id)
+
+  if (!existingItem) {
+    return [...currentItems, toCartItem(product)]
+  }
+
+  return currentItems.map((item) =>
+    item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item,
+  )
+}
+
+export function calculateCartTotals(items: CartItem[]) {
+  return {
+    totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
+    total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  }
+}
+
 export function useCart() {
   const [items, setItems] = useState<CartItem[]>([])
 
   const addProduct = useCallback((product: Product) => {
-    setItems((currentItems) => {
-      const existingItem = currentItems.find((item) => item.productId === product.id)
-
-      if (!existingItem) {
-        return [...currentItems, toCartItem(product)]
-      }
-
-      return currentItems.map((item) =>
-        item.productId === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item,
-      )
-    })
+    setItems((currentItems) => addProductToCart(currentItems, product))
   }, [])
 
   const removeItem = useCallback((productId: number) => {
@@ -88,15 +95,7 @@ export function useCart() {
     setItems([])
   }, [])
 
-  const totalItems = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity, 0),
-    [items],
-  )
-
-  const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [items],
-  )
+  const { totalItems, total } = useMemo(() => calculateCartTotals(items), [items])
 
   return {
     items,

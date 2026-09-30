@@ -5,7 +5,8 @@ import { Button } from '../../components/Button/Button'
 import { CloseMarketModal } from '../../../turn/components/CloseMarketModal'
 import { MarketStatus } from '../../../turn/components/MarketStatus'
 import { OpenMarketModal } from '../../../turn/components/OpenMarketModal'
-import { formatMarketElapsedTime, useMarketSession } from '../../../turn/hooks/useMarketSession'
+import { useMarketSession } from '../../../turn/hooks/useMarketSession'
+import { getTurnErrorMessage } from '../../../turn/services/turnErrorMessage'
 import styles from './Topbar.module.css'
 
 type TopbarProps = {
@@ -17,8 +18,10 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [isOpenMarketModalVisible, setIsOpenMarketModalVisible] = useState(false)
   const [isCloseMarketModalVisible, setIsCloseMarketModalVisible] = useState(false)
+  const [openMarketError, setOpenMarketError] = useState<string | null>(null)
+  const [closeMarketError, setCloseMarketError] = useState<string | null>(null)
 
-  const { isOpen, elapsedTime, openMarket, closeMarket } = useMarketSession()
+  const { currentTurn, isOpen, isLoading, openMarket, closeMarket, isOpening, isClosing } = useMarketSession()
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -30,14 +33,26 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
     }
   }, [])
 
-  const handleOpenMarket = () => {
-    openMarket()
-    setIsOpenMarketModalVisible(false)
+  const handleOpenMarket = async (payload: Parameters<typeof openMarket>[0]) => {
+    setOpenMarketError(null)
+
+    try {
+      await openMarket(payload)
+      setIsOpenMarketModalVisible(false)
+    } catch (error) {
+      setOpenMarketError(getTurnErrorMessage(error))
+    }
   }
 
-  const handleCloseMarket = () => {
-    closeMarket()
-    setIsCloseMarketModalVisible(false)
+  const handleCloseMarket = async (payload: Parameters<typeof closeMarket>[0]) => {
+    setCloseMarketError(null)
+
+    try {
+      await closeMarket(payload)
+      setIsCloseMarketModalVisible(false)
+    } catch (error) {
+      setCloseMarketError(getTurnErrorMessage(error))
+    }
   }
 
   return (
@@ -80,10 +95,11 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
           </div>
 
           <div className={styles.marketCard} aria-label="Status do mercado">
-            <MarketStatus isOpen={isOpen} elapsedTime={formatMarketElapsedTime(elapsedTime)} />
+            <MarketStatus turn={currentTurn} isLoading={isLoading} />
             <Button
               type="button"
               variant={isOpen ? 'danger' : 'success'}
+              loading={isOpening || isClosing}
               onClick={() => (isOpen ? setIsCloseMarketModalVisible(true) : setIsOpenMarketModalVisible(true))}
             >
               {isOpen ? 'Fechar Mercado' : 'Abrir Mercado'}
@@ -94,13 +110,17 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
 
       <OpenMarketModal
         open={isOpenMarketModalVisible}
+        isSubmitting={isOpening}
+        errorMessage={openMarketError}
         onClose={() => setIsOpenMarketModalVisible(false)}
         onConfirm={handleOpenMarket}
       />
 
       <CloseMarketModal
         open={isCloseMarketModalVisible}
-        duration={formatMarketElapsedTime(elapsedTime)}
+        turn={currentTurn}
+        isSubmitting={isClosing}
+        errorMessage={closeMarketError}
         onClose={() => setIsCloseMarketModalVisible(false)}
         onConfirm={handleCloseMarket}
       />

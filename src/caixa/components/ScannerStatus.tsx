@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
 import styles from './ScannerStatus.module.css'
 
 type AudioContextWithWebkit = typeof window & {
@@ -8,6 +7,7 @@ type AudioContextWithWebkit = typeof window & {
 
 type ScannerStatusProps = {
   lastBarcode: string | null
+  scanSignal: number
   successSignal: number
   errorSignal: number
 }
@@ -55,11 +55,11 @@ async function playTone(
   oscillator.stop(audioContext.currentTime + duration)
 }
 
-export function ScannerStatus({ lastBarcode, successSignal, errorSignal }: ScannerStatusProps) {
-  const { onScan } = useBarcodeScanner()
+export function ScannerStatus({ lastBarcode, scanSignal, successSignal, errorSignal }: ScannerStatusProps) {
   const [flashVariant, setFlashVariant] = useState<'idle' | 'success' | 'error'>('idle')
   const feedbackTimeoutRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
+  const previousScanSignalRef = useRef(0)
   const previousSuccessSignalRef = useRef(0)
   const previousErrorSignalRef = useRef(0)
 
@@ -78,14 +78,13 @@ export function ScannerStatus({ lastBarcode, successSignal, errorSignal }: Scann
   }
 
   useEffect(() => {
-    const unsubscribe = onScan(() => {
-      triggerSuccessFeedback()
-    })
-
-    return () => {
-      unsubscribe()
+    if (scanSignal === 0 || scanSignal === previousScanSignalRef.current) {
+      return
     }
-  }, [onScan])
+
+    previousScanSignalRef.current = scanSignal
+    triggerSuccessFeedback()
+  }, [scanSignal])
 
   useEffect(() => {
     if (successSignal === 0 || successSignal === previousSuccessSignalRef.current) {

@@ -1,46 +1,42 @@
 import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react'
 import { ScannerContext } from './ScannerContext'
 import type { BarcodeScanListener } from './scanner.types'
-
-const SCANNER_MAX_AVERAGE_INTERVAL_MS = 30
-
-function clearScannerState(
-  bufferRef: React.MutableRefObject<string>,
-  timestampsRef: React.MutableRefObject<number[]>,
-) {
-  bufferRef.current = ''
-  timestampsRef.current = []
-}
-
-function isPrintableKey(event: KeyboardEvent) {
-  if (event.ctrlKey || event.altKey || event.metaKey) {
-    return false
-  }
-
-  return event.key.length === 1
-}
-
-function getAverageInterval(timestamps: number[]) {
-  if (timestamps.length < 2) {
-    return Number.POSITIVE_INFINITY
-  }
-
-  let totalInterval = 0
-
-  for (let index = 1; index < timestamps.length; index += 1) {
-    totalInterval += timestamps[index] - timestamps[index - 1]
-  }
-
-  return totalInterval / (timestamps.length - 1)
-}
+import {
+  createBarcodeScannerTracker,
+  DEFAULT_BARCODE_SCANNER_CONFIG,
+} from './scannerDetector'
 
 export function BarcodeScannerProvider({ children }: PropsWithChildren) {
   const [lastBarcode, setLastBarcode] = useState<string | null>(null)
-  const bufferRef = useRef('')
-  const timestampsRef = useRef<number[]>([])
+  const [isScanning, setIsScanning] = useState(false)
+  const detectorRef = useRef(createBarcodeScannerTracker(DEFAULT_BARCODE_SCANNER_CONFIG))
   const listenersRef = useRef(new Set<BarcodeScanListener>())
+  const scanStatusTimeoutRef = useRef<number | null>(null)
+
+  const updateScanStatus = useCallback((nextValue: boolean) => {
+    setIsScanning(nextValue)
+
+    if (!nextValue) {
+      return
+    }
+
+    if (scanStatusTimeoutRef.current !== null) {
+      window.clearTimeout(scanStatusTimeoutRef.current)
+    }
+
+    scanStatusTimeoutRef.current = window.setTimeout(() => {
+      setIsScanning(false)
+      scanStatusTimeoutRef.current = null
+    }, 500)
+  }, [])
 
   const onScan = useCallback((listener: BarcodeScanListener) => {
+    if (listenersRef.current.has(listener)) {
+      return () => {
+        listenersRef.current.delete(listener)
+      }
+    }
+
     listenersRef.current.add(listener)
 
     return () => {
@@ -49,53 +45,42 @@ export function BarcodeScannerProvider({ children }: PropsWithChildren) {
   }, [])
 
   useEffect(() => {
-    const listeners = listenersRef.current
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        const barcode = bufferRef.current
+      const barcode = detectorRef.current.handleKey({
+        key: event.key,
+        timeStamp: event.timeStamp,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        metaKey: event.metaKey,
+      })
 
-        if (!barcode) {
-          clearScannerState(bufferRef, timestampsRef)
-          return
-        }
-
-        const averageInterval = getAverageInterval(timestampsRef.current)
-
-        if (averageInterval <= SCANNER_MAX_AVERAGE_INTERVAL_MS) {
-          setLastBarcode(barcode)
-
-          listeners.forEach((listener) => {
-            listener(barcode)
-          })
-        }
-
-        clearScannerState(bufferRef, timestampsRef)
+      if (!barcode) {
         return
       }
 
-      if (event.key === 'Backspace') {
-        bufferRef.current = bufferRef.current.slice(0, -1)
-        timestampsRef.current = timestampsRef.current.slice(0, -1)
-        return
-      }
-
-      if (!isPrintableKey(event)) {
-        return
-      }
-
-      bufferRef.current += event.key
-      timestampsRef.current = [...timestampsRef.current, performance.now()]
+      setLastBarcode(barcode)
+      updateScanStatus(true)
+      listenersRef.current.forEach((listener) => {
+        listener(barcode)
+      })
     }
 
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      listeners.clear()
-      clearScannerState(bufferRef, timestampsRef)
-    }
-  }, [])
+      listenersRef.current.clear()
+      detectorRef.current.reset()
 
-  return <ScannerContext.Provider value={{ lastBarcode, onScan }}>{children}</ScannerContext.Provider>
+      if (scanStatusTimeoutRef.current !== null) {
+        window.clearTimeout(scanStatusTimeoutRef.current)
+      }
+    }
+  }, [updateScanStatus])
+
+  return (
+    <ScannerContext.Provider value={{ lastBarcode, onScan, isScanning }}>
+      {children}
+    </ScannerContext.Provider>
+  )
 }

@@ -5,6 +5,7 @@ import styles from './CheckoutModal.module.css'
 type CheckoutModalProps = {
   isOpen: boolean
   totalItems: number
+  totalProducts: number
   total: number
   isSubmitting: boolean
   onConfirm: () => void
@@ -21,6 +22,7 @@ function formatCurrency(value: number) {
 export function CheckoutModal({
   isOpen,
   totalItems,
+  totalProducts,
   total,
   isSubmitting,
   onConfirm,
@@ -37,7 +39,7 @@ export function CheckoutModal({
             Cancelar
           </Button>
           <Button variant="success" onClick={onConfirm} loading={isSubmitting} autoFocus>
-            Confirmar Venda
+            Finalizar venda
           </Button>
         </>
       }
@@ -52,6 +54,10 @@ export function CheckoutModal({
           <div className={styles.summaryCard}>
             <span className={styles.label}>Itens</span>
             <strong>{totalItems}</strong>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.label}>Produtos</span>
+            <strong>{totalProducts}</strong>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.label}>Total</span>
