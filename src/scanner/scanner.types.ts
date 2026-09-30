@@ -7,4 +7,5 @@ export type RegisterBarcodeScanListener = (
 export type BarcodeScannerContextValue = {
   lastBarcode: string | null
   onScan: RegisterBarcodeScanListener
+  isScanning: boolean
 }

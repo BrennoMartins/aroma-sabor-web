@@ -1,4 +1,5 @@
 import { api } from '../../shared/api/axios'
+import { z } from 'zod'
 
 export type SaleItemPayload = {
   productId: number
@@ -14,8 +15,26 @@ export type CreateSaleResponse = {
   total: number
 }
 
+const CreateSaleResponseSchema = z.object({
+  id: z.number(),
+  total: z.number(),
+})
+
+export class InvalidCreateSaleResponseError extends Error {
+  constructor() {
+    super('Invalid create sale response')
+    this.name = 'InvalidCreateSaleResponseError'
+  }
+}
+
 export async function createSale(payload: CreateSaleRequest) {
   const response = await api.post<CreateSaleResponse>('/sales', payload)
 
-  return response.data
+  const result = CreateSaleResponseSchema.safeParse(response.data)
+
+  if (!result.success) {
+    throw new InvalidCreateSaleResponseError()
+  }
+
+  return result.data
 }

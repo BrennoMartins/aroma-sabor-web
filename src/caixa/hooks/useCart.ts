@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { Product } from '../../shared/api/products'
 
 export type CartItem = {
@@ -19,30 +19,37 @@ function toCartItem(product: Product): CartItem {
   }
 }
 
+export function addProductToCart(currentItems: CartItem[], product: Product): CartItem[] {
+  const existingItem = currentItems.find((item) => item.productId === product.id)
+
+  if (!existingItem) {
+    return [...currentItems, toCartItem(product)]
+  }
+
+  return currentItems.map((item) =>
+    item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item,
+  )
+}
+
+export function calculateCartTotals(items: CartItem[]) {
+  return {
+    totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
+    total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  }
+}
+
 export function useCart() {
   const [items, setItems] = useState<CartItem[]>([])
 
-  const addProduct = (product: Product) => {
-    setItems((currentItems) => {
-      const existingItem = currentItems.find((item) => item.productId === product.id)
+  const addProduct = useCallback((product: Product) => {
+    setItems((currentItems) => addProductToCart(currentItems, product))
+  }, [])
 
-      if (!existingItem) {
-        return [...currentItems, toCartItem(product)]
-      }
-
-      return currentItems.map((item) =>
-        item.productId === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item,
-      )
-    })
-  }
-
-  const removeItem = (productId: number) => {
+  const removeItem = useCallback((productId: number) => {
     setItems((currentItems) => currentItems.filter((item) => item.productId !== productId))
-  }
+  }, [])
 
-  const updateQuantity = (productId: number, quantity: number) => {
+  const updateQuantity = useCallback((productId: number, quantity: number) => {
     setItems((currentItems) =>
       currentItems.flatMap((item) => {
         if (item.productId !== productId) {
@@ -56,9 +63,9 @@ export function useCart() {
         return [{ ...item, quantity }]
       }),
     )
-  }
+  }, [])
 
-  const incrementItem = (productId: number) => {
+  const incrementItem = useCallback((productId: number) => {
     setItems((currentItems) =>
       currentItems.map((item) =>
         item.productId === productId
@@ -66,9 +73,9 @@ export function useCart() {
           : item,
       ),
     )
-  }
+  }, [])
 
-  const decrementItem = (productId: number) => {
+  const decrementItem = useCallback((productId: number) => {
     setItems((currentItems) =>
       currentItems.flatMap((item) => {
         if (item.productId !== productId) {
@@ -82,21 +89,13 @@ export function useCart() {
         return [{ ...item, quantity: item.quantity - 1 }]
       }),
     )
-  }
+  }, [])
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setItems([])
-  }
+  }, [])
 
-  const totalItems = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity, 0),
-    [items],
-  )
-
-  const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [items],
-  )
+  const { totalItems, total } = useMemo(() => calculateCartTotals(items), [items])
 
   return {
     items,

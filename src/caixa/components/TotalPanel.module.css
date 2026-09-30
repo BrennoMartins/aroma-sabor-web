@@ -1,0 +1,55 @@
+.card {
+  display: grid;
+  gap: 18px;
+  align-self: start;
+}
+
+.metric {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.amount {
+  font-size: clamp(2.4rem, 5vw, 3.5rem);
+  line-height: 1;
+}
+
+.count {
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  line-height: 1;
+}
+
+.shortcutList {
+  display: grid;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.shortcutItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-secondary);
+}
+
+.hint {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-border-brand) 48%, transparent);
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--color-brand-primary) 18%, transparent),
+    color-mix(in srgb, var(--color-surface) 84%, transparent)
+  );
+  color: var(--color-text-secondary);
+}

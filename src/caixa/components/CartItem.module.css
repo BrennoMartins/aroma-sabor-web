@@ -1,0 +1,67 @@
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 0.9fr) minmax(130px, 0.8fr) minmax(130px, 0.8fr) auto;
+  gap: var(--space-md);
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
+}
+
+.row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.name {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption-size);
+  line-height: var(--font-caption-line-height);
+}
+
+.quantity {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quantityButton {
+  min-width: 36px;
+  padding-inline: 0;
+}
+
+.quantityValue {
+  min-width: 24px;
+  text-align: center;
+  font-weight: var(--font-subtitle-weight);
+}
+
+.value {
+  color: var(--color-text-secondary);
+}
+
+.subtotal {
+  font-size: 1rem;
+}
+
+.removeButton {
+  justify-self: start;
+}
+
+@media (max-width: 768px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .removeButton {
+    width: 100%;
+    justify-self: stretch;
+  }
+}

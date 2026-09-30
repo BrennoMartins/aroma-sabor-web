@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import styles from './Button.module.css'
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success'
 
@@ -17,19 +18,18 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const classes = ['ui-button', `ui-button--${variant}`]
+  const variantClass = {
+    primary: styles.primary,
+    secondary: styles.secondary,
+    success: styles.success,
+    danger: styles.danger,
+  }[variant]
 
-  if (loading) {
-    classes.push('ui-button--loading')
-  }
-
-  if (className) {
-    classes.push(className)
-  }
+  const classes = [styles.button, variantClass, loading ? styles.loading : '', className].filter(Boolean).join(' ')
 
   return (
-    <button {...props} className={classes.join(' ')} disabled={disabled || loading}>
-      {loading ? <span className="ui-button__spinner" aria-hidden="true" /> : icon ? <span className="ui-button__icon">{icon}</span> : null}
+    <button {...props} className={classes} disabled={disabled || loading} aria-busy={loading}>
+      {loading ? <span className={styles.spinner} aria-hidden="true" /> : icon ? <span className={styles.icon}>{icon}</span> : null}
       <span>{children}</span>
     </button>
   )

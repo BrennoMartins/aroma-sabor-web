@@ -1,20 +1,29 @@
 export const typography = {
-  fontFamily: {
-    base: "'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif",
-  },
-  fontSize: {
-    xs: '0.75rem',
-    sm: '0.875rem',
-    md: '1rem',
-    lg: '1.125rem',
-    xl: '1.5rem',
-    '2xl': '2rem',
-    '3xl': '2.75rem',
-  },
+  fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   fontWeight: {
     regular: 400,
     medium: 500,
     semibold: 600,
     bold: 700,
+  },
+  title: {
+    fontSize: '1.5rem',
+    lineHeight: 1.2,
+    fontWeight: 700,
+  },
+  subtitle: {
+    fontSize: '1.125rem',
+    lineHeight: 1.3,
+    fontWeight: 600,
+  },
+  body: {
+    fontSize: '1rem',
+    lineHeight: 1.5,
+    fontWeight: 400,
+  },
+  caption: {
+    fontSize: '0.875rem',
+    lineHeight: 1.4,
+    fontWeight: 500,
   },
 } as const
