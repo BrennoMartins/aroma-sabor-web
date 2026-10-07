@@ -84,8 +84,9 @@ export function useMarketSession(): UseMarketSessionResult {
   const closeMutation = useMutation({
     mutationFn: ({ turnId, closingNote }: { turnId: string; closingNote: string }) =>
       closeTurn(turnId, { closingNote }),
-    onSuccess: () => {
-      queryClient.setQueryData(TURN_QUERY_KEY, null)
+    onSuccess: async (_data, { turnId }) => {
+      queryClient.removeQueries({ queryKey: ['turns', 'summary', turnId] })
+      await queryClient.invalidateQueries({ queryKey: TURN_QUERY_KEY })
       toast.success('Mercado fechado com sucesso.')
     },
   })

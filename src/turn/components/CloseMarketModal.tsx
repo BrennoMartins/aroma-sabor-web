@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '../../shared/components/Button/Button'
 import { Modal } from '../../shared/components/Modal/Modal'
-import { useMarketElapsedTime, formatMarketElapsedTime } from '../hooks/useMarketSession'
+import { TurnSummary } from './TurnSummary'
 import type { MarketSession, CloseMarketPayload } from '../types/marketSession'
 import styles from './CloseMarketModal.module.css'
 
@@ -24,7 +24,6 @@ const closeMarketSchema = z.object({
 type CloseMarketFormValues = z.infer<typeof closeMarketSchema>
 
 export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClose, onConfirm }: CloseMarketModalProps) {
-  const { elapsedTime, elapsedSeconds } = useMarketElapsedTime(turn?.openedAt)
   const {
     register,
     handleSubmit,
@@ -52,9 +51,11 @@ export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClo
     })
   }, [open, reset, setFocus])
 
-  const duration = turn?.openedAt ? elapsedTime : formatMarketElapsedTime(elapsedSeconds)
-
   const submitForm = (values: CloseMarketFormValues) => {
+    if (isSubmitting) {
+      return
+    }
+
     onConfirm({
       closingNote: values.closingNote.trim(),
     })
@@ -63,7 +64,7 @@ export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClo
   return (
     <Modal
       open={open}
-      title="Encerrar mercado"
+      title="Fechar Mercado"
       onClose={onClose}
       actions={
         <>
@@ -77,7 +78,7 @@ export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClo
       }
     >
       <form id="close-market-form" className={styles.body} onSubmit={handleSubmit(submitForm)}>
-        <p className={styles.message}>Deseja encerrar o turno atual?</p>
+        <p className={styles.message}>Você está prestes a fechar o mercado.</p>
 
         <dl className={styles.summary}>
           <div>
@@ -85,14 +86,12 @@ export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClo
             <dd>{turn?.operatorName ?? 'Nao informado'}</dd>
           </div>
           <div>
-            <dt>Duracao do turno</dt>
-            <dd>{duration}</dd>
-          </div>
-          <div>
             <dt>Observacao de abertura</dt>
             <dd>{turn?.openingNote?.trim() ? turn.openingNote : 'Sem observacao'}</dd>
           </div>
         </dl>
+
+        {open && turn ? <TurnSummary turnId={turn.id} /> : null}
 
         <label className={styles.field}>
           <span className={styles.label}>Observacao de fechamento</span>
@@ -100,6 +99,7 @@ export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClo
             className={styles.textarea}
             rows={3}
             placeholder="Ex.: fechamento do caixa e encerramento do atendimento"
+            aria-invalid={errors.closingNote ? true : undefined}
             {...register('closingNote')}
           />
         </label>

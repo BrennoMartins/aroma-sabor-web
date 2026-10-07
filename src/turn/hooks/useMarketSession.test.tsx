@@ -229,7 +229,7 @@ describe('useMarketSession', () => {
 
   it('fecha turno com sucesso', async () => {
     const turn = createTurn()
-    getCurrentTurnMock.mockResolvedValueOnce(turn)
+    getCurrentTurnMock.mockResolvedValueOnce(turn).mockResolvedValueOnce(null)
     closeTurnMock.mockResolvedValueOnce({
       id: turn.id,
       openedAt: turn.openedAt,
@@ -249,6 +249,7 @@ describe('useMarketSession', () => {
 
     expect(document.querySelector('[data-testid="status"]')?.textContent).toBe('closed')
     expect(document.querySelector('[data-testid="turn-id"]')?.textContent).toBe('none')
+    expect(getCurrentTurnMock).toHaveBeenCalledTimes(2)
     expect(toastSuccessMock).toHaveBeenCalledWith('Mercado fechado com sucesso.')
   })
 

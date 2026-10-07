@@ -6,7 +6,7 @@ import { CloseMarketModal } from '../../../turn/components/CloseMarketModal'
 import { MarketStatus } from '../../../turn/components/MarketStatus'
 import { OpenMarketModal } from '../../../turn/components/OpenMarketModal'
 import { useMarketSession } from '../../../turn/hooks/useMarketSession'
-import { getTurnErrorMessage } from '../../../turn/services/turnErrorMessage'
+import { getCloseTurnErrorMessage, getTurnErrorMessage } from '../../../turn/services/turnErrorMessage'
 import styles from './Topbar.module.css'
 
 type TopbarProps = {
@@ -51,7 +51,7 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
       await closeMarket(payload)
       setIsCloseMarketModalVisible(false)
     } catch (error) {
-      setCloseMarketError(getTurnErrorMessage(error))
+      setCloseMarketError(getCloseTurnErrorMessage(error))
     }
   }
 
