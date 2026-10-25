@@ -32,6 +32,10 @@ export function AppRouter() {
           path: 'sales',
           element: <SalesPage />,
         },
+        {
+          path: 'sales/:saleId',
+          element: <SalesPage />,
+        },
       ],
     },
   ])

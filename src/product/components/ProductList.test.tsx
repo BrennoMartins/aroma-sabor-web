@@ -338,7 +338,6 @@ describe('ProductList', () => {
       name: 'Café premium',
       categoryId: 23,
       price: 20.75,
-      stock: 12,
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('Produto atualizado com sucesso.')
     expect(document.body.textContent).not.toContain('Editar produto')

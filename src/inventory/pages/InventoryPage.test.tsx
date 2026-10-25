@@ -21,13 +21,17 @@ describe('InventoryPage', () => {
     document.body.innerHTML = ''
   })
 
-  it('documenta a ausência de endpoints de reposição e histórico sem simular persistência', async () => {
+  it('documenta a ausência de endpoints de ajuste, reposição e histórico sem simular persistência', async () => {
     await act(async () => {
       root.render(<InventoryPage />)
     })
 
     expect(container.textContent).toContain('backend ainda não disponibiliza um endpoint de reposição')
     expect(container.textContent).toContain('Nenhuma movimentação foi simulada ou gravada')
+    expect(container.textContent).toContain('o backend não oferece uma operação de ajuste')
+    expect(container.textContent).toContain('POST /api/products/{id}/stock-adjustments')
+    expect(container.textContent).toContain('estoque esperado para detectar alterações concorrentes')
+    expect(container.textContent).toContain('a tabela atual rejeita movimentações com quantidade zero')
     expect(container.textContent).toContain('registrar entradas de estoque')
     expect(container.textContent).toContain('consultar movimentações')
     expect(container.textContent).toContain('estoque anterior ou posterior')

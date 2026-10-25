@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../shared/api/axios'
-import { deactivateProduct, getProducts, updateProduct } from './productApi'
+import { deactivateProduct, getProductById, getProducts, updateProduct } from './productApi'
 
 vi.mock('../../shared/api/axios', () => ({
   api: {
@@ -46,19 +46,56 @@ describe('getProducts', () => {
   })
 })
 
+describe('getProductById', () => {
+  beforeEach(() => {
+    vi.mocked(api.get).mockReset()
+  })
+
+  it('busca os dados atuais do produto pelo ID', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: {
+        id: 17,
+        name: 'Café',
+        barcode: '7891000000001',
+        category: { id: 23, name: 'Mercearia' },
+        price: 18.5,
+        stock: 9,
+        active: true,
+      },
+    })
+
+    await expect(getProductById(17)).resolves.toMatchObject({
+      id: 17,
+      stockQuantity: 9,
+    })
+    expect(api.get).toHaveBeenCalledWith('/products/17')
+  })
+})
+
 describe('updateProduct', () => {
   beforeEach(() => {
+    vi.mocked(api.get).mockReset()
     vi.mocked(api.put).mockReset()
   })
 
-  it('envia o DTO exigido pela API e mapeia a resposta atualizada', async () => {
+  it('preserva o estoque atual do backend ao editar somente os dados cadastrais', async () => {
     const payload = {
       barcode: '7891000000002',
       name: 'Café atualizado',
       categoryId: 23,
       price: 20.75,
-      stock: 12,
     }
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: {
+        id: 17,
+        name: 'Café',
+        barcode: '7891000000001',
+        category: { id: 23, name: 'Mercearia' },
+        price: 18.5,
+        stock: 9,
+        active: true,
+      },
+    })
     vi.mocked(api.put).mockResolvedValueOnce({
       data: {
         id: 17,
@@ -66,7 +103,7 @@ describe('updateProduct', () => {
         barcode: '7891000000002',
         category: { id: 23, name: 'Bebidas' },
         price: 20.75,
-        stock: 12,
+        stock: 9,
         active: true,
       },
     })
@@ -78,10 +115,11 @@ describe('updateProduct', () => {
       categoryId: 23,
       category: 'Bebidas',
       price: 20.75,
-      stockQuantity: 12,
+      stockQuantity: 9,
       active: true,
     })
-    expect(api.put).toHaveBeenCalledWith('/products/17', payload)
+    expect(api.get).toHaveBeenCalledWith('/products/17')
+    expect(api.put).toHaveBeenCalledWith('/products/17', { ...payload, stock: 9 })
   })
 })
 

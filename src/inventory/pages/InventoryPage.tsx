@@ -4,6 +4,33 @@ import styles from './InventoryPage.module.css'
 export function InventoryPage() {
   return (
     <section className={styles.page}>
+      <Card title="Ajustes manuais de estoque" className={styles.card}>
+        <p className={styles.status} role="status">
+          Não é possível ajustar o estoque: o backend não oferece uma operação de ajuste que atualize o produto e
+          registre a movimentação correspondente. Nenhuma alteração foi realizada.
+        </p>
+        <h4 className={styles.heading}>Contrato necessário no backend</h4>
+        <ul className={styles.list}>
+          <li>
+            Disponibilizar <code>POST /api/products/{'{id}'}/stock-adjustments</code> com quantidade física encontrada,
+            justificativa obrigatória e estoque esperado para detectar alterações concorrentes.
+          </li>
+          <li>
+            Calcular a diferença usando o estoque lido no backend, atualizar o produto e gravar a movimentação
+            <code> ADJUSTMENT</code> com diferença assinada e justificativa na mesma transação.
+          </li>
+          <li>
+            Rejeitar estoque esperado desatualizado sem gravar alterações e retornar o produto persistido e a
+            movimentação registrada.
+          </li>
+          <li>
+            Definir como registrar ajustes sem diferença: a tabela atual rejeita movimentações com quantidade zero,
+            portanto é necessário permitir e rastrear esse caso ou retornar explicitamente que nenhuma movimentação
+            foi criada.
+          </li>
+        </ul>
+      </Card>
+
       <Card title="Reposição de estoque" className={styles.card}>
         <p className={styles.status} role="status">
           Não é possível registrar entradas de estoque: o backend ainda não disponibiliza um endpoint de reposição.

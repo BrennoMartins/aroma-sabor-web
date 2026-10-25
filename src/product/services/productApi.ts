@@ -19,7 +19,7 @@ export type CreateProductRequest = {
   stock: number
 }
 
-export type UpdateProductRequest = CreateProductRequest
+export type UpdateProductRequest = Omit<CreateProductRequest, 'stock'>
 
 type ProductResponse = {
   id: number
@@ -56,6 +56,12 @@ export async function getProductByBarcode(barcode: string) {
   return mapProductResponse(response.data)
 }
 
+export async function getProductById(id: number) {
+  const response = await api.get<ProductResponse>(`/products/${id}`)
+
+  return mapProductResponse(response.data)
+}
+
 export async function createProduct(payload: CreateProductRequest) {
   const response = await api.post<ProductResponse>('/products', payload)
 
@@ -63,7 +69,11 @@ export async function createProduct(payload: CreateProductRequest) {
 }
 
 export async function updateProduct(id: number, payload: UpdateProductRequest) {
-  const response = await api.put<ProductResponse>(`/products/${id}`, payload)
+  const currentProduct = await getProductById(id)
+  const response = await api.put<ProductResponse>(`/products/${id}`, {
+    ...payload,
+    stock: currentProduct.stockQuantity,
+  })
 
   return mapProductResponse(response.data)
 }

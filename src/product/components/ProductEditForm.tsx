@@ -104,7 +104,6 @@ export function ProductEditForm({
       name: values.name.trim(),
       categoryId,
       price: Number(values.price.replace(',', '.')),
-      stock: product.stockQuantity,
     })
   }
 
