@@ -234,7 +234,17 @@ select {
 }
 
 .ui-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   padding: 26px;
+}
+
+.ui-modal__body {
+  min-height: 0;
+  margin-top: 16px;
+  overflow-y: auto;
 }
 
 .ui-modal__title {
@@ -242,15 +252,12 @@ select {
   font-size: var(--font-size-xl);
 }
 
-.ui-modal__body {
-  margin-top: 16px;
-}
-
 .ui-modal__actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
+  flex: 0 0 auto;
 }
 
 .ui-toast-stack {

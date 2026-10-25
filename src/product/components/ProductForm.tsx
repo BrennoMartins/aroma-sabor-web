@@ -2,10 +2,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { useCategories } from '../../category/hooks/useCategories'
 import { Button } from '../../shared/components/Button/Button'
 import { Input } from '../../shared/components/Input/Input'
 import { Modal } from '../../shared/components/Modal/Modal'
 import type { CreateProductRequest } from '../services/productApi'
+import styles from './ProductForm.module.css'
 
 type ProductFormProps = {
   open: boolean
@@ -18,7 +20,10 @@ type ProductFormProps = {
 const productFormSchema = z.object({
   barcode: z.string().trim().min(3, 'Codigo invalido.'),
   name: z.string().trim().min(2, 'Informe o nome do produto.'),
-  category: z.string().trim().min(2, 'Informe a categoria.'),
+  categoryId: z
+    .string()
+    .min(1, 'Selecione uma categoria.')
+    .refine((value) => Number.isInteger(Number(value)) && Number(value) > 0, 'Selecione uma categoria valida.'),
   price: z
     .string()
     .trim()
@@ -42,18 +47,20 @@ const productFormSchema = z.object({
 type ProductFormValues = z.infer<typeof productFormSchema>
 
 export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: ProductFormProps) {
+  const categoriesQuery = useCategories(open)
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
     setFocus,
+    setError,
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
     defaultValues: {
       barcode: '',
       name: '',
-      category: '',
+      categoryId: '',
       price: '',
       initialStock: '0',
     },
@@ -67,7 +74,7 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
     reset({
       barcode,
       name: '',
-      category: '',
+      categoryId: '',
       price: '',
       initialStock: '0',
     })
@@ -78,14 +85,24 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
   }, [barcode, open, reset, setFocus])
 
   const submitForm = (values: ProductFormValues) => {
+    const categoryId = Number(values.categoryId)
+    const categoryIsAvailable = categoriesQuery.data?.some((category) => category.id === categoryId)
+
+    if (!categoryIsAvailable) {
+      setError('categoryId', { type: 'validate', message: 'Selecione uma categoria disponivel.' })
+      return
+    }
+
     onSubmit({
       barcode: values.barcode,
       name: values.name.trim(),
-      category: values.category.trim(),
+      categoryId,
       price: Number(values.price.replace(',', '.')),
-      stockQuantity: Number(values.initialStock),
+      stock: Number(values.initialStock),
     })
   }
+
+  const categoriesAvailable = Boolean(categoriesQuery.data?.length)
 
   return (
     <Modal
@@ -97,7 +114,13 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
           <Button variant="secondary" type="button" onClick={onClose}>
             Cancelar
           </Button>
-          <Button variant="success" type="submit" form="smart-product-form" loading={isSaving}>
+          <Button
+            variant="success"
+            type="submit"
+            form="smart-product-form"
+            loading={isSaving}
+            disabled={categoriesQuery.isPending || categoriesQuery.isError || !categoriesAvailable}
+          >
             Salvar
           </Button>
         </>
@@ -106,7 +129,55 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
       <form id="smart-product-form" className="product-form" onSubmit={handleSubmit(submitForm)}>
         <Input label="Codigo" readOnly {...register('barcode')} error={errors.barcode?.message} />
         <Input label="Nome" autoFocus {...register('name')} error={errors.name?.message} />
-        <Input label="Categoria" {...register('category')} error={errors.category?.message} />
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="categoryId">
+            Categoria
+          </label>
+          <select
+            id="categoryId"
+            className={styles.select}
+            disabled={categoriesQuery.isPending || categoriesQuery.isError || !categoriesAvailable}
+            aria-invalid={Boolean(errors.categoryId)}
+            aria-describedby={errors.categoryId ? 'categoryId-error' : undefined}
+            {...register('categoryId')}
+          >
+            <option value="">
+              {categoriesQuery.isPending
+                ? 'Carregando categorias...'
+                : categoriesAvailable
+                  ? 'Selecione uma categoria'
+                  : 'Nenhuma categoria disponível'}
+            </option>
+            {categoriesQuery.data?.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+          {errors.categoryId ? (
+            <span id="categoryId-error" className={styles.error} role="alert">
+              {errors.categoryId.message}
+            </span>
+          ) : null}
+          {categoriesQuery.isError ? (
+            <div className={styles.message} role="alert">
+              <span>Nao foi possivel carregar as categorias. Tente novamente.</span>
+              <Button type="button" variant="secondary" onClick={() => void categoriesQuery.refetch()}>
+                Tentar novamente
+              </Button>
+            </div>
+          ) : null}
+          {categoriesQuery.isSuccess && !categoriesAvailable ? (
+            <p className={styles.message} role="status">
+              Nenhuma categoria cadastrada. O gerenciamento de categorias ainda nao esta disponivel.
+            </p>
+          ) : null}
+          {categoriesQuery.isPending ? (
+            <p className={styles.message} role="status">
+              Carregando categorias...
+            </p>
+          ) : null}
+        </div>
         <Input label="Preco" inputMode="decimal" placeholder="Ex.: 12,90" {...register('price')} error={errors.price?.message} />
         <Input
           label="Estoque inicial"

@@ -3,6 +3,7 @@ import type {
   CloseMarketPayload,
   MarketSession,
   OpenMarketPayload,
+  TurnSummary,
 } from '../types/marketSession'
 
 export type CloseMarketResponse = Pick<
@@ -12,6 +13,12 @@ export type CloseMarketResponse = Pick<
 
 export async function getCurrentTurn() {
   const response = await api.get<MarketSession>('/turns/current')
+
+  return response.data
+}
+
+export async function getTurnSummary(turnId: string) {
+  const response = await api.get<TurnSummary>(`/turns/${turnId}/summary`)
 
   return response.data
 }

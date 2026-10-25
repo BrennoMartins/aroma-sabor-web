@@ -33,3 +33,33 @@ export function getTurnErrorMessage(error: unknown) {
 
   return 'Erro de rede ao processar o turno. Verifique a conexao e tente novamente.'
 }
+
+export function getCloseTurnErrorMessage(error: unknown) {
+  if (!isAxiosError(error)) {
+    return 'Nao foi possivel fechar o mercado. Tente novamente.'
+  }
+
+  if (error.code === 'ECONNABORTED') {
+    return 'Tempo esgotado ao fechar o mercado. Tente novamente.'
+  }
+
+  const status = error.response?.status
+
+  if (status === 409) {
+    return 'Este turno ja foi fechado ou esta em conflito. Atualize o status e tente novamente.'
+  }
+
+  if (status === 404) {
+    return 'Turno nao encontrado. Atualize a tela e tente novamente.'
+  }
+
+  if (status === 400) {
+    return 'Dados de fechamento invalidos. Revise a observacao e tente novamente.'
+  }
+
+  if (status && status >= 500) {
+    return 'Servico indisponivel no momento. Tente novamente.'
+  }
+
+  return 'Erro de rede ao fechar o mercado. Verifique a conexao e tente novamente.'
+}

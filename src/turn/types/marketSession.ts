@@ -11,6 +11,26 @@ export type MarketSession = {
   durationInMinutes: number | null
 }
 
+export type TopSellingProduct = {
+  productId: string
+  productName: string
+  quantitySold: number
+  revenue: number
+}
+
+export type TurnSummary = {
+  turnId: string
+  status: TurnStatus
+  openedAt: string
+  closedAt: string | null
+  durationInMinutes: number
+  salesCount: number
+  totalRevenue: number
+  averageTicket: number
+  topProducts: TopSellingProduct[]
+  lowStockProductCount: number
+}
+
 export type OpenMarketPayload = {
   operatorName: string
   openingNote?: string
