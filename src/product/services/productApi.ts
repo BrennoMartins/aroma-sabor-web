@@ -12,19 +12,39 @@ export type ProductRecord = {
 export type CreateProductRequest = {
   barcode: string
   name: string
-  category: string
+  categoryId: number
   price: number
-  stockQuantity: number
+  stock: number
+}
+
+type ProductResponse = {
+  id: number
+  name: string
+  barcode: string
+  category: { id: number; name: string } | null
+  price: number
+  stock: number
+}
+
+function mapProductResponse(product: ProductResponse): ProductRecord {
+  return {
+    id: product.id,
+    name: product.name,
+    barcode: product.barcode,
+    category: product.category?.name ?? null,
+    price: product.price,
+    stockQuantity: product.stock,
+  }
 }
 
 export async function getProductByBarcode(barcode: string) {
-  const response = await api.get<ProductRecord>(`/products/barcode/${barcode}`)
+  const response = await api.get<ProductResponse>(`/products/barcode/${barcode}`)
 
-  return response.data
+  return mapProductResponse(response.data)
 }
 
 export async function createProduct(payload: CreateProductRequest) {
-  const response = await api.post<ProductRecord>('/products', payload)
+  const response = await api.post<ProductResponse>('/products', payload)
 
-  return response.data
+  return mapProductResponse(response.data)
 }

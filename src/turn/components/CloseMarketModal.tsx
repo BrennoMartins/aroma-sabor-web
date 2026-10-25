@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '../../shared/components/Button/Button'
 import { Modal } from '../../shared/components/Modal/Modal'
+import { useTurnSummary } from '../hooks/useTurnSummary'
 import { TurnSummary } from './TurnSummary'
 import type { MarketSession, CloseMarketPayload } from '../types/marketSession'
 import styles from './CloseMarketModal.module.css'
@@ -24,6 +25,7 @@ const closeMarketSchema = z.object({
 type CloseMarketFormValues = z.infer<typeof closeMarketSchema>
 
 export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClose, onConfirm }: CloseMarketModalProps) {
+  const { isSuccess: isSummaryLoaded } = useTurnSummary(open ? turn?.id : undefined)
   const {
     register,
     handleSubmit,
@@ -52,7 +54,7 @@ export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClo
   }, [open, reset, setFocus])
 
   const submitForm = (values: CloseMarketFormValues) => {
-    if (isSubmitting) {
+    if (isSubmitting || !isSummaryLoaded) {
       return
     }
 
@@ -71,7 +73,13 @@ export function CloseMarketModal({ open, turn, isSubmitting, errorMessage, onClo
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" variant="danger" form="close-market-form" loading={isSubmitting}>
+          <Button
+            type="submit"
+            variant="danger"
+            form="close-market-form"
+            loading={isSubmitting}
+            disabled={!isSummaryLoaded}
+          >
             Fechar Mercado
           </Button>
         </>

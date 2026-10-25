@@ -122,6 +122,7 @@ async function typeNote(value: string) {
 describe('CloseMarketModal flow', () => {
   let container: HTMLDivElement
   let root: Root
+  let queryClient: QueryClient
 
   beforeEach(async () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -135,7 +136,7 @@ describe('CloseMarketModal flow', () => {
     document.body.appendChild(container)
     root = createRoot(container)
 
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
 
     await act(async () => {
       root.render(
@@ -150,6 +151,7 @@ describe('CloseMarketModal flow', () => {
 
   afterEach(() => {
     act(() => root.unmount())
+    queryClient.clear()
     container.remove()
     document.body.innerHTML = ''
   })
@@ -161,7 +163,57 @@ describe('CloseMarketModal flow', () => {
     expect(document.body.textContent).toContain('Pao Frances')
     expect(document.body.textContent).toContain('3 produtos com estoque baixo')
     expect(document.body.textContent).toContain('1h 30min')
+    expect(buttonByText('Fechar Mercado').disabled).toBe(false)
     expect(closeTurnMock).not.toHaveBeenCalled()
+  })
+
+  it('bloqueia o fechamento até o resumo carregar e permite tentar novamente após erro', async () => {
+    act(() => root.unmount())
+    document.body.innerHTML = ''
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    queryClient.clear()
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+
+    let rejectSummary: (reason?: unknown) => void = () => {}
+    getTurnSummaryMock
+      .mockReset()
+      .mockReturnValueOnce(new Promise((_, reject) => {
+        rejectSummary = reject
+      }))
+      .mockResolvedValueOnce(summary)
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <CloseMarketModal
+            open
+            turn={turn}
+            isSubmitting={false}
+            errorMessage={null}
+            onClose={vi.fn()}
+            onConfirm={vi.fn()}
+          />
+        </QueryClientProvider>,
+      )
+    })
+
+    expect(buttonByText('Fechar Mercado').disabled).toBe(true)
+
+    await act(async () => {
+      rejectSummary(new Error('Falha de rede'))
+      await flush()
+    })
+    await settle()
+
+    expect(document.body.textContent).toContain('Não foi possível carregar o resumo do turno.')
+    expect(buttonByText('Fechar Mercado').disabled).toBe(true)
+
+    await click('Tentar novamente')
+
+    expect(getTurnSummaryMock).toHaveBeenCalledTimes(2)
+    expect(buttonByText('Fechar Mercado').disabled).toBe(false)
   })
 
   it('valida a observacao e impede envio invalido', async () => {
