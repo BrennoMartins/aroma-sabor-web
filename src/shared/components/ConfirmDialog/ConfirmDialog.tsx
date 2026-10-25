@@ -8,6 +8,8 @@ type ConfirmDialogProps = {
   confirmLabel?: string
   cancelLabel?: string
   confirmVariant?: 'primary' | 'danger' | 'success' | 'secondary'
+  isConfirming?: boolean
+  confirmingLabel?: string
   onConfirm: () => void
   onCancel: () => void
 }
@@ -19,6 +21,8 @@ export function ConfirmDialog({
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
   confirmVariant = 'primary',
+  isConfirming = false,
+  confirmingLabel = 'Processando...',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -26,14 +30,14 @@ export function ConfirmDialog({
     <Modal
       open={open}
       title={title}
-      onClose={onCancel}
+      onClose={isConfirming ? () => undefined : onCancel}
       actions={
         <>
-          <Button variant="secondary" onClick={onCancel}>
+          <Button variant="secondary" disabled={isConfirming} onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>
-            {confirmLabel}
+          <Button variant={confirmVariant} loading={isConfirming} onClick={onConfirm}>
+            {isConfirming ? confirmingLabel : confirmLabel}
           </Button>
         </>
       }

@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
@@ -9,6 +9,7 @@ import {
   type CreateProductRequest,
   type ProductRecord,
 } from '../services/productApi'
+import { PRODUCTS_QUERY_KEY } from './useProducts'
 
 type AudioContextWithWebkit = typeof window & {
   webkitAudioContext?: typeof AudioContext
@@ -75,6 +76,7 @@ function normalizeBarcode(value: string) {
 }
 
 export function useSmartProductRegistration() {
+  const queryClient = useQueryClient()
   const { onScan } = useBarcodeScanner()
   const [activeModal, setActiveModal] = useState<'none' | 'register' | 'restock'>('none')
   const [registrationBarcode, setRegistrationBarcode] = useState<string | null>(null)
@@ -135,7 +137,7 @@ export function useSmartProductRegistration() {
         setRegistrationBarcode(null)
         setActiveModal('restock')
         triggerFeedback('found')
-        toast.info('Produto encontrado. Informe a quantidade para reposicao.')
+        toast.info('Produto encontrado. A reposição ficará disponível quando o backend oferecer essa operação.')
         return
       }
 
@@ -153,11 +155,12 @@ export function useSmartProductRegistration() {
 
   const createProductMutation = useMutation({
     mutationFn: createProduct,
-    onSuccess: (createdProduct) => {
+    onSuccess: async (createdProduct) => {
       toast.success(`${createdProduct.name} cadastrado com sucesso.`)
       closeAllModals()
       setManualBarcode('')
       triggerFeedback('found')
+      await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
     },
     onError: () => {
       triggerFeedback('error')
@@ -183,17 +186,6 @@ export function useSmartProductRegistration() {
   const submitNewProduct = useCallback((payload: CreateProductRequest) => {
     createProductMutation.mutate(payload)
   }, [createProductMutation])
-
-  const submitRestock = useCallback((quantity: number) => {
-    if (!selectedProduct) {
-      return
-    }
-
-    toast.info(`Reposicao de ${quantity} un. para ${selectedProduct.name} preparada para integrar na API.`)
-    closeAllModals()
-    setManualBarcode('')
-    triggerFeedback('found')
-  }, [closeAllModals, selectedProduct, triggerFeedback])
 
   const runManualSearch = useCallback(() => {
     processBarcode(manualBarcode)
@@ -275,7 +267,6 @@ export function useSmartProductRegistration() {
     isCheckingProduct: lookupProductMutation.isPending,
     isSavingProduct: createProductMutation.isPending,
     submitNewProduct,
-    submitRestock,
     closeAllModals,
   }
 }
