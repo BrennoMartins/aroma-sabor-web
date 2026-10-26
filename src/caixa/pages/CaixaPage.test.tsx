@@ -8,6 +8,10 @@ import type { Product } from '../../shared/api/products'
 import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
 import { SALES_QUERY_KEY } from '../../sales/hooks/useSalesHistory'
 import { STOCK_MOVEMENTS_QUERY_KEY } from '../../inventory/hooks/useStockMovements'
+import {
+  DASHBOARD_LOW_STOCK_QUERY_KEY,
+  DASHBOARD_TOP_PRODUCTS_QUERY_KEY,
+} from '../../dashboard/hooks/useDashboardProducts'
 import { turnSummaryQueryKey } from '../../turn/hooks/useTurnSummary'
 
 type CartItem = {
@@ -336,6 +340,8 @@ describe('CaixaPage checkout flow', () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: STOCK_MOVEMENTS_QUERY_KEY })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: SALES_QUERY_KEY })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: turnSummaryQueryKey('turn-1') })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_TOP_PRODUCTS_QUERY_KEY })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
   })
 
   it('erro mantem carrinho e mostra feedback amigavel', async () => {

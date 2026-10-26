@@ -45,8 +45,11 @@ export function BarcodeScannerProvider({ children }: PropsWithChildren) {
   }, [])
 
   useEffect(() => {
+    const detector = detectorRef.current
+    const listeners = listenersRef.current
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      const barcode = detectorRef.current.handleKey({
+      const barcode = detector.handleKey({
         key: event.key,
         timeStamp: event.timeStamp,
         ctrlKey: event.ctrlKey,
@@ -60,7 +63,7 @@ export function BarcodeScannerProvider({ children }: PropsWithChildren) {
 
       setLastBarcode(barcode)
       updateScanStatus(true)
-      listenersRef.current.forEach((listener) => {
+      listeners.forEach((listener) => {
         listener(barcode)
       })
     }
@@ -69,8 +72,8 @@ export function BarcodeScannerProvider({ children }: PropsWithChildren) {
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      listenersRef.current.clear()
-      detectorRef.current.reset()
+      listeners.clear()
+      detector.reset()
 
       if (scanStatusTimeoutRef.current !== null) {
         window.clearTimeout(scanStatusTimeoutRef.current)

@@ -1,6 +1,8 @@
 import {
   Archive,
+  ChartColumnIncreasing,
   Cog,
+  LayoutDashboard,
   LayoutGrid,
   Package,
   Receipt,
@@ -11,11 +13,13 @@ import { SidebarItem } from './SidebarItem'
 import styles from './Sidebar.module.css'
 
 const navigationItems = [
-  { to: '/', label: 'Caixa', icon: ScanLine },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/caixa', label: 'Caixa', icon: ScanLine },
   { to: '/products', label: 'Produtos', icon: Package },
   { to: '/categories', label: 'Categorias', icon: LayoutGrid },
   { to: '/inventory', label: 'Estoque', icon: Archive },
   { to: '/sales', label: 'Vendas', icon: Receipt },
+  { to: '/reports/sales', label: 'Relatórios', icon: ChartColumnIncreasing },
 ] as const
 
 type SidebarProps = {

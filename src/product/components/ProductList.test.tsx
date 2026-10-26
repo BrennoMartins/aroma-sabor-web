@@ -3,6 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  DASHBOARD_LOW_STOCK_QUERY_KEY,
+  DASHBOARD_TOP_PRODUCTS_QUERY_KEY,
+} from '../../dashboard/hooks/useDashboardProducts'
 import type { CategoryRecord } from '../../category/services/categoryApi'
 import type { ProductRecord } from '../services/productApi'
 import { ProductList } from './ProductList'
@@ -340,6 +344,7 @@ describe('ProductList', () => {
 
     await render()
     await waitForText('Água mineral')
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     container.querySelector<HTMLButtonElement>('button[aria-label="Editar Café especial"]')?.click()
     await waitForText('Editar produto')
 
@@ -367,6 +372,29 @@ describe('ProductList', () => {
     expect(container.textContent).toContain('7891999999999')
     expect(container.textContent).toContain('Bebidas')
     expect(queryClient.getQueryData<ProductRecord[]>(['products'])?.[0]).toEqual(updatedProduct)
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_TOP_PRODUCTS_QUERY_KEY })
+  })
+
+  it('does not invalidate low-stock data when an edit does not change displayed fields', async () => {
+    updateProductMock.mockResolvedValueOnce({ ...products[0], price: 19.25 })
+
+    await render()
+    await waitForText('Água mineral')
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    container.querySelector<HTMLButtonElement>('button[aria-label="Editar Café especial"]')?.click()
+    await waitForText('Editar produto')
+    setFieldValue('[name="price"]', '19,25')
+
+    await act(async () => {
+      document.querySelector<HTMLFormElement>('#product-edit-form')?.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      )
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(updateProductMock).toHaveBeenCalled()
+    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
   })
 
   it('valida todos os campos obrigatórios antes de salvar', async () => {
@@ -406,6 +434,7 @@ describe('ProductList', () => {
 
     await render()
     await waitForText('Água mineral')
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     container.querySelector<HTMLButtonElement>('button[aria-label="Editar Café especial"]')?.click()
     await waitForText('Editar produto')
 
@@ -419,6 +448,7 @@ describe('ProductList', () => {
     await waitForText('já está cadastrado')
     expect(toastErrorMock).toHaveBeenCalledWith('Erro de validação. já está cadastrado')
     expect(document.body.textContent).toContain('Editar produto')
+    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
   })
 
   it('cancela a edição sem enviar nem alterar a listagem', async () => {

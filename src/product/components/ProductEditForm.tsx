@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { useCategories } from '../../category/hooks/useCategories'
@@ -55,7 +55,6 @@ export function ProductEditForm({
 }: ProductEditFormProps) {
   const categoriesQuery = useCategories(true)
   const submitLock = useRef(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const {
     register,
     handleSubmit,
@@ -75,14 +74,13 @@ export function ProductEditForm({
 
   const categoriesAvailable = Boolean(categoriesQuery.data?.length)
   const fieldsDisabled =
-    isSaving || isSubmitting || categoriesQuery.isPending || categoriesQuery.isError || !categoriesAvailable
+    isSaving || categoriesQuery.isPending || categoriesQuery.isError || !categoriesAvailable
 
   useEffect(() => {
-    if (!isSaving && isSubmitting) {
+    if (!isSaving) {
       submitLock.current = false
-      setIsSubmitting(false)
     }
-  }, [isSaving, isSubmitting])
+  }, [isSaving])
 
   const submitForm = (values: ProductEditValues) => {
     if (submitLock.current) {
@@ -96,9 +94,7 @@ export function ProductEditForm({
       setError('categoryId', { type: 'validate', message: 'Selecione uma categoria disponível.' })
       return
     }
-
     submitLock.current = true
-    setIsSubmitting(true)
     onSubmit({
       barcode: values.barcode.trim(),
       name: values.name.trim(),
@@ -120,7 +116,7 @@ export function ProductEditForm({
       onClose={closeForm}
       actions={
         <>
-          <Button variant="secondary" type="button" disabled={isSaving || isSubmitting} onClick={closeForm}>
+          <Button variant="secondary" type="button" disabled={isSaving} onClick={closeForm}>
             Cancelar
           </Button>
           <Button
@@ -135,7 +131,13 @@ export function ProductEditForm({
         </>
       }
     >
-      <form id="product-edit-form" className="product-form" onSubmit={handleSubmit(submitForm)}>
+      <form
+        id="product-edit-form"
+        className="product-form"
+        onSubmit={(event) => {
+          void handleSubmit(submitForm)(event)
+        }}
+      >
         <Input
           label="Nome"
           autoFocus

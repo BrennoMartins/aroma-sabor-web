@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProductRecord } from '../../product/services/productApi'
+import { DASHBOARD_LOW_STOCK_QUERY_KEY } from '../../dashboard/hooks/useDashboardProducts'
 import { InventoryPage } from './InventoryPage'
 
 const {
@@ -175,6 +176,7 @@ describe('InventoryPage', () => {
   }
 
   it('valida reposição inteira positiva e envia somente após validação', async () => {
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     await render()
     setFieldValue('#replenishment-product', '7')
     setFieldValue('[name="quantity"]', '1.5')
@@ -192,6 +194,7 @@ describe('InventoryPage', () => {
 
     expect(replenishProductMock).toHaveBeenCalledWith(7, { quantity: 4, reason: 'Recebimento' })
     expect(queryClient.getQueryData<ProductRecord[]>(['products'])?.[0].stockQuantity).toBe(9)
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
     expect(toastSuccessMock).toHaveBeenCalledWith('Reposição registrada com sucesso.')
   })
 

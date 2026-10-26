@@ -37,7 +37,7 @@ function formatDateTime(value: string | null) {
   return Number.isNaN(date.getTime()) ? 'Não informado' : dateTimeFormatter.format(date)
 }
 
-export function formatTurnDuration(durationInMinutes: number) {
+function formatTurnDuration(durationInMinutes: number) {
   const safeMinutes = Math.max(0, Math.floor(durationInMinutes))
   const hours = Math.floor(safeMinutes / 60)
   const minutes = safeMinutes % 60
