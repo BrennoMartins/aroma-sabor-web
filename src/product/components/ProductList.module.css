@@ -2,6 +2,13 @@
   margin-bottom: var(--space-lg);
 }
 
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
 .filters {
   display: grid;
   grid-template-columns: minmax(220px, 2fr) minmax(180px, 1fr) auto;
@@ -12,13 +19,6 @@
 .categoryField {
   display: grid;
   gap: var(--space-xs);
-}
-
-.statusNotice {
-  margin: var(--space-sm) 0 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-caption-size);
-  line-height: var(--font-caption-line-height);
 }
 
 .label {

@@ -45,7 +45,7 @@ const summary: TurnSummary = {
   salesCount: 12,
   totalRevenue: 340.5,
   averageTicket: 28.37,
-  topProducts: [{ productId: 'p1', productName: 'Pao Frances', quantitySold: 30, revenue: 45 }],
+  topProducts: [{ productId: 1, productName: 'Pao Frances', quantitySold: 30, revenue: 45 }],
   lowStockProductCount: 3,
 }
 

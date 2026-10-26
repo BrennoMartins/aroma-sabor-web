@@ -6,14 +6,21 @@ import { Card } from '../../shared/components/Card/Card'
 import { ConfirmDialog } from '../../shared/components/ConfirmDialog/ConfirmDialog'
 import { Input } from '../../shared/components/Input/Input'
 import { toast } from '../../shared/components/Toast/toast-store'
+import { getInventoryErrorMessage } from '../../inventory/services/inventoryErrorMessage'
 import { getProductUpdateErrorMessage } from '../services/productUpdateErrorMessage'
 import {
   deactivateProduct,
+  reactivateProduct,
   updateProduct,
   type ProductRecord,
   type UpdateProductRequest,
 } from '../services/productApi'
-import { PRODUCTS_QUERY_KEY, useProducts } from '../hooks/useProducts'
+import {
+  INACTIVE_PRODUCTS_QUERY_KEY,
+  PRODUCTS_QUERY_KEY,
+  useInactiveProducts,
+  useProducts,
+} from '../hooks/useProducts'
 import { ProductEditForm } from './ProductEditForm'
 import styles from './ProductList.module.css'
 
@@ -36,12 +43,17 @@ function matchesSearch(product: ProductRecord, normalizedSearch: string) {
 export function ProductList() {
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
   const [editingProduct, setEditingProduct] = useState<ProductRecord | null>(null)
   const [deactivatingProduct, setDeactivatingProduct] = useState<ProductRecord | null>(null)
+  const [reactivatingProduct, setReactivatingProduct] = useState<ProductRecord | null>(null)
   const deactivationLock = useRef(false)
+  const reactivationLock = useRef(false)
   const queryClient = useQueryClient()
   const productsQuery = useProducts()
+  const inactiveProductsQuery = useInactiveProducts(showInactive)
   const categoriesQuery = useCategories(true)
+  const listQuery = showInactive ? inactiveProductsQuery : productsQuery
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateProductRequest }) => updateProduct(id, payload),
     onSuccess: (updatedProduct) => {
@@ -57,10 +69,11 @@ export function ProductList() {
   })
   const deactivateMutation = useMutation({
     mutationFn: (productId: number) => deactivateProduct(productId),
-    onSuccess: (_response, productId) => {
+    onSuccess: async (_response, productId) => {
       queryClient.setQueryData<ProductRecord[]>(PRODUCTS_QUERY_KEY, (currentProducts) =>
         currentProducts?.filter((product) => product.id !== productId),
       )
+      await queryClient.invalidateQueries({ queryKey: INACTIVE_PRODUCTS_QUERY_KEY, exact: true })
       setDeactivatingProduct(null)
       toast.success('Produto desativado com sucesso. Ele não aparecerá mais na lista de ativos.')
     },
@@ -71,16 +84,33 @@ export function ProductList() {
       deactivationLock.current = false
     },
   })
+  const reactivateMutation = useMutation({
+    mutationFn: (productId: number) => reactivateProduct(productId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: INACTIVE_PRODUCTS_QUERY_KEY, exact: true }),
+      ])
+      setReactivatingProduct(null)
+      toast.success('Produto reativado com sucesso e incluído na lista de ativos.')
+    },
+    onError: (error) => {
+      toast.error(getInventoryErrorMessage(error, 'reactivation'))
+    },
+    onSettled: () => {
+      reactivationLock.current = false
+    },
+  })
   const normalizedSearch = search.trim().toLocaleLowerCase('pt-BR')
   const selectedCategoryId = categoryId ? Number(categoryId) : null
   const filteredProducts = useMemo(
     () =>
-      (productsQuery.data ?? []).filter(
+      (listQuery.data ?? []).filter(
         (product) =>
           matchesSearch(product, normalizedSearch) &&
           (selectedCategoryId === null || product.categoryId === selectedCategoryId),
       ),
-    [normalizedSearch, productsQuery.data, selectedCategoryId],
+    [listQuery.data, normalizedSearch, selectedCategoryId],
   )
   const filtersApplied = Boolean(normalizedSearch || categoryId)
   const categoriesAvailable = Boolean(categoriesQuery.data?.length)
@@ -105,8 +135,41 @@ export function ProductList() {
     }
   }
 
+  const confirmReactivation = () => {
+    if (!reactivatingProduct || reactivationLock.current) {
+      return
+    }
+
+    reactivationLock.current = true
+    reactivateMutation.mutate(reactivatingProduct.id)
+  }
+
+  const cancelReactivation = () => {
+    if (!reactivationLock.current) {
+      setReactivatingProduct(null)
+    }
+  }
+
   return (
     <Card title="Produtos" className={styles.card}>
+      <div className={styles.tabs} role="group" aria-label="Status dos produtos">
+        <Button
+          type="button"
+          variant={showInactive ? 'secondary' : 'primary'}
+          aria-pressed={!showInactive}
+          onClick={() => setShowInactive(false)}
+        >
+          Produtos ativos
+        </Button>
+        <Button
+          type="button"
+          variant={showInactive ? 'primary' : 'secondary'}
+          aria-pressed={showInactive}
+          onClick={() => setShowInactive(true)}
+        >
+          Produtos inativos
+        </Button>
+      </div>
       <div className={styles.filters} role="search" aria-label="Filtros de produtos">
         <Input
           label="Buscar produto"
@@ -161,19 +224,14 @@ export function ProductList() {
           Limpar filtros
         </Button>
       </div>
-      <p className={styles.statusNotice}>
-        A API lista somente produtos ativos. Produtos desativados não podem ser consultados ou reativados por esta
-        interface.
-      </p>
-
-      {productsQuery.isPending ? (
+      {listQuery.isPending ? (
         <p className={styles.status} role="status" aria-busy="true">
-          Carregando produtos...
+          {showInactive ? 'Carregando produtos inativos...' : 'Carregando produtos...'}
         </p>
-      ) : productsQuery.isError ? (
+      ) : listQuery.isError ? (
         <div className={styles.message} role="alert">
-          <span>Não foi possível carregar os produtos.</span>
-          <Button type="button" variant="secondary" onClick={() => void productsQuery.refetch()}>
+          <span>Não foi possível carregar os produtos {showInactive ? 'inativos' : 'ativos'}.</span>
+          <Button type="button" variant="secondary" onClick={() => void listQuery.refetch()}>
             Tentar novamente
           </Button>
         </div>
@@ -181,10 +239,12 @@ export function ProductList() {
         <p className={styles.status} role="status">
           {filtersApplied
             ? 'Nenhum produto encontrado. Ajuste ou limpe os filtros.'
-            : 'Nenhum produto cadastrado.'}
+            : showInactive
+              ? 'Nenhum produto inativo.'
+              : 'Nenhum produto cadastrado.'}
         </p>
       ) : (
-        <div className={styles.tableWrapper} aria-busy={productsQuery.isFetching}>
+        <div className={styles.tableWrapper} aria-busy={listQuery.isFetching}>
           <table className={styles.table}>
             <caption className={styles.caption}>
               {filteredProducts.length} {filteredProducts.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
@@ -239,7 +299,20 @@ export function ProductList() {
                         >
                           Desativar
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="success"
+                          aria-label={`Reativar ${product.name}`}
+                          disabled={reactivateMutation.isPending}
+                          onClick={() => {
+                            reactivateMutation.reset()
+                            setReactivatingProduct(product)
+                          }}
+                        >
+                          Reativar
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -273,6 +346,21 @@ export function ProductList() {
         isConfirming={deactivateMutation.isPending}
         onConfirm={confirmDeactivation}
         onCancel={cancelDeactivation}
+      />
+      <ConfirmDialog
+        open={Boolean(reactivatingProduct)}
+        title="Reativar produto"
+        description={
+          reactivatingProduct
+            ? `Deseja reativar "${reactivatingProduct.name}"? O produto voltará para a lista de ativos sem alteração no estoque ou no histórico.`
+            : ''
+        }
+        confirmLabel="Reativar produto"
+        confirmingLabel="Reativando..."
+        confirmVariant="success"
+        isConfirming={reactivateMutation.isPending}
+        onConfirm={confirmReactivation}
+        onCancel={cancelReactivation}
       />
     </Card>
   )

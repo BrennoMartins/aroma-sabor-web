@@ -23,7 +23,7 @@ function createSummary(overrides: Partial<TurnSummaryData> = {}): TurnSummaryDat
     totalRevenue: 1842.5,
     averageTicket: 76.77,
     topProducts: Array.from({ length: 6 }, (_, index) => ({
-      productId: `product-${index + 1}`,
+      productId: index + 1,
       productName: `Produto ${index + 1}`,
       quantitySold: index + 1,
       revenue: (index + 1) * 10.5,

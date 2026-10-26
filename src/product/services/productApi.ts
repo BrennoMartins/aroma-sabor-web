@@ -21,6 +21,16 @@ export type CreateProductRequest = {
 
 export type UpdateProductRequest = Omit<CreateProductRequest, 'stock'>
 
+export type StockReplenishmentRequest = {
+  quantity: number
+  reason?: string
+}
+
+export type StockAdjustmentRequest = {
+  quantityOnHand: number
+  reason: string
+}
+
 type ProductResponse = {
   id: number
   name: string
@@ -50,6 +60,12 @@ export async function getProducts() {
   return response.data.map(mapProductResponse)
 }
 
+export async function getInactiveProducts() {
+  const response = await api.get<ProductResponse[]>('/products/inactive')
+
+  return response.data.map(mapProductResponse)
+}
+
 export async function getProductByBarcode(barcode: string) {
   const response = await api.get<ProductResponse>(`/products/barcode/${barcode}`)
 
@@ -69,15 +85,29 @@ export async function createProduct(payload: CreateProductRequest) {
 }
 
 export async function updateProduct(id: number, payload: UpdateProductRequest) {
-  const currentProduct = await getProductById(id)
-  const response = await api.put<ProductResponse>(`/products/${id}`, {
-    ...payload,
-    stock: currentProduct.stockQuantity,
-  })
+  const response = await api.put<ProductResponse>(`/products/${id}`, payload)
 
   return mapProductResponse(response.data)
 }
 
 export async function deactivateProduct(id: number) {
   await api.delete<void>(`/products/${id}`)
+}
+
+export async function reactivateProduct(id: number) {
+  const response = await api.post<ProductResponse>(`/products/${id}/reactivate`)
+
+  return mapProductResponse(response.data)
+}
+
+export async function replenishProduct(id: number, payload: StockReplenishmentRequest) {
+  const response = await api.post<ProductResponse>(`/products/${id}/replenishments`, payload)
+
+  return mapProductResponse(response.data)
+}
+
+export async function adjustProductStock(id: number, payload: StockAdjustmentRequest) {
+  const response = await api.post<ProductResponse>(`/products/${id}/stock-adjustments`, payload)
+
+  return mapProductResponse(response.data)
 }

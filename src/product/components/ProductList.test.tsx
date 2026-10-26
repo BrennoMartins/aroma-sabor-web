@@ -10,15 +10,19 @@ import { ProductList } from './ProductList'
 const {
   getCategoriesMock,
   getProductsMock,
+  getInactiveProductsMock,
   updateProductMock,
   deactivateProductMock,
+  reactivateProductMock,
   toastErrorMock,
   toastSuccessMock,
 } = vi.hoisted(() => ({
   getCategoriesMock: vi.fn(),
   getProductsMock: vi.fn(),
+  getInactiveProductsMock: vi.fn(),
   updateProductMock: vi.fn(),
   deactivateProductMock: vi.fn(),
+  reactivateProductMock: vi.fn(),
   toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
 }))
@@ -29,8 +33,10 @@ vi.mock('../../category/services/categoryApi', () => ({
 
 vi.mock('../services/productApi', () => ({
   getProducts: (...args: unknown[]) => getProductsMock(...args),
+  getInactiveProducts: (...args: unknown[]) => getInactiveProductsMock(...args),
   updateProduct: (...args: unknown[]) => updateProductMock(...args),
   deactivateProduct: (...args: unknown[]) => deactivateProductMock(...args),
+  reactivateProduct: (...args: unknown[]) => reactivateProductMock(...args),
 }))
 
 vi.mock('../../shared/components/Toast/toast-store', () => ({
@@ -78,6 +84,19 @@ const products: ProductRecord[] = [
   },
 ]
 
+const inactiveProducts: ProductRecord[] = [
+  {
+    id: 4,
+    name: 'Produto pausado',
+    barcode: '7894000000004',
+    categoryId: 7,
+    category: 'Mercearia',
+    price: 6.25,
+    stockQuantity: 8,
+    active: false,
+  },
+]
+
 function setFieldValue(selector: string, value: string) {
   const field = document.querySelector<HTMLInputElement | HTMLSelectElement>(selector)
 
@@ -108,12 +127,15 @@ describe('ProductList', () => {
     })
     getCategoriesMock.mockReset()
     getProductsMock.mockReset()
+    getInactiveProductsMock.mockReset()
     updateProductMock.mockReset()
     deactivateProductMock.mockReset()
+    reactivateProductMock.mockReset()
     toastErrorMock.mockReset()
     toastSuccessMock.mockReset()
     getCategoriesMock.mockResolvedValue(categories)
     getProductsMock.mockResolvedValue(products)
+    getInactiveProductsMock.mockResolvedValue(inactiveProducts)
   })
 
   afterEach(() => {
@@ -255,7 +277,7 @@ describe('ProductList', () => {
     getProductsMock.mockRejectedValueOnce(new Error('network error')).mockResolvedValueOnce(products)
 
     await render()
-    await waitForText('Não foi possível carregar os produtos.')
+    await waitForText('Não foi possível carregar os produtos ativos.')
 
     const retryButton = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Tentar novamente'),
@@ -434,13 +456,120 @@ describe('ProductList', () => {
     expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
   })
 
-  it('exibe o status ativo e informa a limitação de reativação', async () => {
+  it('exibe o status ativo e mantém ações de produto ativo', async () => {
     await render()
     await waitForText('Água mineral')
 
     expect(container.querySelector('tbody tr')?.textContent).toContain('Ativo')
-    expect(container.textContent).toContain('não podem ser consultados ou reativados')
     expect(container.querySelector('button[aria-label="Desativar Café especial"]')).not.toBeNull()
+  })
+
+  it('lista produtos inativos separadamente com cadastro e saldo disponíveis', async () => {
+    await render()
+    await waitForText('Água mineral')
+
+    await clickButton(Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Produtos inativos'),
+    ) ?? null)
+    await waitForText('Produto pausado')
+
+    expect(container.textContent).toContain('7894000000004')
+    expect(container.textContent).toContain('8')
+    expect(container.textContent).toContain('Inativo')
+    expect(container.textContent).not.toContain('Café especial')
+    expect(getInactiveProductsMock).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('button[aria-label="Reativar Produto pausado"]')).not.toBeNull()
+  })
+
+  it('confirma reativação e atualiza as consultas de ativos e inativos após a resposta', async () => {
+    const reactivatedProduct = { ...inactiveProducts[0], active: true }
+    reactivateProductMock.mockResolvedValueOnce(reactivatedProduct)
+
+    await render()
+    await waitForText('Água mineral')
+    await clickButton(Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Produtos inativos'),
+    ) ?? null)
+    await waitForText('Produto pausado')
+    await clickButton(container.querySelector<HTMLButtonElement>('button[aria-label="Reativar Produto pausado"]'))
+    await waitForText('Deseja reativar "Produto pausado"?')
+    getProductsMock.mockResolvedValueOnce([...products, reactivatedProduct])
+    getInactiveProductsMock.mockResolvedValueOnce([])
+
+    expect(reactivateProductMock).not.toHaveBeenCalled()
+
+    await clickButton(Array.from(document.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Reativar produto'),
+    ) ?? null)
+    await waitForText('Nenhum produto inativo.')
+
+    expect(reactivateProductMock).toHaveBeenCalledWith(4)
+    expect(getProductsMock).toHaveBeenCalledTimes(2)
+    expect(getInactiveProductsMock).toHaveBeenCalledTimes(2)
+    expect(toastSuccessMock).toHaveBeenCalledWith('Produto reativado com sucesso e incluído na lista de ativos.')
+    expect(document.body.textContent).not.toContain('Deseja reativar')
+    expect(queryClient.getQueryData<ProductRecord[]>(['products'])).toEqual([...products, reactivatedProduct])
+  })
+
+  it('impede envio duplicado enquanto reativa um produto', async () => {
+    let finishReactivation: ((product: ProductRecord) => void) | undefined
+    reactivateProductMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishReactivation = resolve
+      }),
+    )
+
+    await render()
+    await waitForText('Água mineral')
+    await clickButton(Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Produtos inativos'),
+    ) ?? null)
+    await waitForText('Produto pausado')
+    await clickButton(container.querySelector<HTMLButtonElement>('button[aria-label="Reativar Produto pausado"]'))
+    await waitForText('Deseja reativar "Produto pausado"?')
+    const confirmButton = Array.from(document.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Reativar produto'),
+    )
+
+    await act(async () => {
+      confirmButton?.click()
+      confirmButton?.click()
+      await Promise.resolve()
+    })
+
+    await waitForText('Reativando...')
+    expect(reactivateProductMock).toHaveBeenCalledTimes(1)
+    expect(confirmButton?.disabled).toBe(true)
+
+    await act(async () => {
+      finishReactivation?.({ ...inactiveProducts[0], active: true })
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+  })
+
+  it('mostra conflito de reativação sem remover o produto inativo', async () => {
+    reactivateProductMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 409 },
+    })
+
+    await render()
+    await waitForText('Água mineral')
+    await clickButton(Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Produtos inativos'),
+    ) ?? null)
+    await waitForText('Produto pausado')
+    await clickButton(container.querySelector<HTMLButtonElement>('button[aria-label="Reativar Produto pausado"]'))
+    await clickButton(Array.from(document.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Reativar produto'),
+    ) ?? null)
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Este produto já está ativo ou há um conflito no código de barras. Atualize a lista e tente novamente.',
+    )
+    expect(container.textContent).toContain('Produto pausado')
+    expect(queryClient.getQueryData<ProductRecord[]>(['products', 'inactive'])).toEqual(inactiveProducts)
+    expect(queryClient.getQueryData<ProductRecord[]>(['products'])).toEqual(products)
   })
 
   it('pede confirmação antes de desativar e permite cancelar sem alterar o produto', async () => {
