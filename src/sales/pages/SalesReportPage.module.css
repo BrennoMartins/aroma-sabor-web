@@ -1,0 +1,277 @@
+.page {
+  display: grid;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.header h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--color-brand-primary-hover);
+  font-size: var(--font-caption-size);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.subtitle,
+.periodLabel,
+.dateHint,
+.seriesDescription,
+.emptyState {
+  color: var(--color-text-secondary);
+}
+
+.subtitle {
+  margin: var(--space-xs) 0 0;
+}
+
+.periodLabel {
+  flex: 0 0 auto;
+  font-size: var(--font-caption-size);
+}
+
+.filtersCard,
+.metricCard,
+.seriesCard {
+  min-width: 0;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: var(--space-md);
+}
+
+.filters > button {
+  white-space: nowrap;
+}
+
+.dateHint {
+  margin: var(--space-md) 0 0;
+  font-size: var(--font-caption-size);
+  line-height: 1.5;
+}
+
+.stateCard {
+  width: min(100%, 560px);
+}
+
+.stateMessage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.errorState {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-md);
+}
+
+.errorState [role='alert'] {
+  color: var(--color-danger);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-brand-primary-hover);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+.updateStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.reportContent {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.metricCard {
+  height: 100%;
+}
+
+.metric {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-sm);
+}
+
+.metricIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: var(--radius-md);
+}
+
+.primary {
+  color: var(--color-brand-primary-hover);
+  background: color-mix(in srgb, var(--color-brand-primary) 20%, transparent);
+}
+
+.success {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+}
+
+.warning {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+}
+
+.metricLabel {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption-size);
+}
+
+.metricValue {
+  color: var(--color-text-primary);
+  font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.seriesDescription {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-caption-size);
+}
+
+.emptyState {
+  margin: 0 0 var(--space-md);
+  line-height: 1.5;
+}
+
+.dailyList {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dailyItem {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-background) 75%, transparent);
+}
+
+.dayHeading {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-body-size);
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 72px minmax(48px, 1fr) minmax(86px, auto);
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.barLabel {
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption-size);
+}
+
+.barTrack {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-light);
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+
+.revenueBar {
+  background: var(--color-brand-primary-hover);
+}
+
+.salesBar {
+  background: var(--color-success);
+}
+
+.barValue {
+  color: var(--color-text-primary);
+  font-size: var(--font-caption-size);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .filters {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .filters > button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.5s;
+  }
+
+  .bar {
+    transition: none;
+  }
+}

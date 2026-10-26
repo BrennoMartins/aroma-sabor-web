@@ -21,6 +21,11 @@ import { getTurnErrorMessage } from '../../turn/services/turnErrorMessage'
 import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
 import { SALES_QUERY_KEY } from '../../sales/hooks/useSalesHistory'
 import { STOCK_MOVEMENTS_QUERY_KEY } from '../../inventory/hooks/useStockMovements'
+import { DASHBOARD_QUERY_KEY } from '../../dashboard/hooks/useDashboardSummary'
+import {
+  DASHBOARD_LOW_STOCK_QUERY_KEY,
+  DASHBOARD_TOP_PRODUCTS_QUERY_KEY,
+} from '../../dashboard/hooks/useDashboardProducts'
 import styles from './CaixaPage.module.css'
 
 function isTypingTarget(target: EventTarget | null) {
@@ -106,6 +111,9 @@ export function CaixaPage() {
         queryClient.invalidateQueries({ queryKey: STOCK_MOVEMENTS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: SALES_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: turnSummaryQueryKey(currentTurn?.id) }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_TOP_PRODUCTS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
       ])
       toast.success('Venda concluida.')
       setSuccessSignal((currentValue) => currentValue + 1)

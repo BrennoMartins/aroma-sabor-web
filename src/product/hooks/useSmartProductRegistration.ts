@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
+import { DASHBOARD_LOW_STOCK_QUERY_KEY } from '../../dashboard/hooks/useDashboardProducts'
 import { toast } from '../../shared/components/Toast/toast-store'
 import {
   createProduct,
@@ -160,7 +161,10 @@ export function useSmartProductRegistration() {
       closeAllModals()
       setManualBarcode('')
       triggerFeedback('found')
-      await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
+      ])
     },
     onError: () => {
       triggerFeedback('error')

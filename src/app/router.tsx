@@ -1,9 +1,11 @@
 import { useRoutes } from 'react-router-dom'
 import { CaixaPage } from '../caixa/pages/CaixaPage'
 import { CategoryPage } from '../category/pages/CategoryPage'
+import { DashboardPage } from '../dashboard/pages/DashboardPage'
 import { InventoryPage } from '../inventory/pages/InventoryPage'
 import { ProductPage } from '../product/pages/ProductPage'
 import { SalesPage } from '../sales/pages/SalesPage'
+import { SalesReportPage } from '../sales/pages/SalesReportPage'
 import { MainLayout } from '../shared/layout/MainLayout'
 
 export function AppRouter() {
@@ -14,6 +16,10 @@ export function AppRouter() {
       children: [
         {
           index: true,
+          element: <DashboardPage />,
+        },
+        {
+          path: 'caixa',
           element: <CaixaPage />,
         },
         {
@@ -35,6 +41,10 @@ export function AppRouter() {
         {
           path: 'sales/:saleId',
           element: <SalesPage />,
+        },
+        {
+          path: 'reports/sales',
+          element: <SalesReportPage />,
         },
       ],
     },

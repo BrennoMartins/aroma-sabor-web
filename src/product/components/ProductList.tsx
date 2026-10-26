@@ -1,4 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  DASHBOARD_LOW_STOCK_QUERY_KEY,
+  DASHBOARD_TOP_PRODUCTS_QUERY_KEY,
+} from '../../dashboard/hooks/useDashboardProducts'
 import { useMemo, useRef, useState } from 'react'
 import { useCategories } from '../../category/hooks/useCategories'
 import { Button } from '../../shared/components/Button/Button'
@@ -55,11 +59,22 @@ export function ProductList() {
   const categoriesQuery = useCategories(true)
   const listQuery = showInactive ? inactiveProductsQuery : productsQuery
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: UpdateProductRequest }) => updateProduct(id, payload),
-    onSuccess: (updatedProduct) => {
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number
+      payload: UpdateProductRequest
+      lowStockDisplayChanged: boolean
+    }) => updateProduct(id, payload),
+    onSuccess: (updatedProduct, { lowStockDisplayChanged }) => {
       queryClient.setQueryData<ProductRecord[]>(PRODUCTS_QUERY_KEY, (currentProducts) =>
         currentProducts?.map((product) => (product.id === updatedProduct.id ? updatedProduct : product)),
       )
+      void queryClient.invalidateQueries({ queryKey: DASHBOARD_TOP_PRODUCTS_QUERY_KEY })
+      if (lowStockDisplayChanged) {
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
+      }
       setEditingProduct(null)
       toast.success('Produto atualizado com sucesso.')
     },
@@ -73,7 +88,10 @@ export function ProductList() {
       queryClient.setQueryData<ProductRecord[]>(PRODUCTS_QUERY_KEY, (currentProducts) =>
         currentProducts?.filter((product) => product.id !== productId),
       )
-      await queryClient.invalidateQueries({ queryKey: INACTIVE_PRODUCTS_QUERY_KEY, exact: true })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: INACTIVE_PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
+      ])
       setDeactivatingProduct(null)
       toast.success('Produto desativado com sucesso. Ele não aparecerá mais na lista de ativos.')
     },
@@ -90,6 +108,7 @@ export function ProductList() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
         queryClient.invalidateQueries({ queryKey: INACTIVE_PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
       ])
       setReactivatingProduct(null)
       toast.success('Produto reativado com sucesso e incluído na lista de ativos.')
@@ -327,7 +346,12 @@ export function ProductList() {
           product={editingProduct}
           isSaving={updateMutation.isPending}
           errorMessage={updateMutation.isError ? getProductUpdateErrorMessage(updateMutation.error) : undefined}
-          onSubmit={(payload) => updateMutation.mutate({ id: editingProduct.id, payload })}
+          onSubmit={(payload) => updateMutation.mutate({
+            id: editingProduct.id,
+            payload,
+            lowStockDisplayChanged:
+              payload.name !== editingProduct.name || payload.barcode !== editingProduct.barcode,
+          })}
           onClose={() => setEditingProduct(null)}
         />
       ) : null}

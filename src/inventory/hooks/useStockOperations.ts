@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { DASHBOARD_LOW_STOCK_QUERY_KEY } from '../../dashboard/hooks/useDashboardProducts'
 import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
 import {
   adjustProductStock,
@@ -26,6 +27,7 @@ function useStockMutation<TPayload>(
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
         queryClient.invalidateQueries({ queryKey: STOCK_MOVEMENTS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
       ])
       toast.success(operation === 'replenishment' ? 'Reposição registrada com sucesso.' : 'Ajuste de estoque registrado com sucesso.')
     },

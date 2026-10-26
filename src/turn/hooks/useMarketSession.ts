@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DASHBOARD_QUERY_KEY } from '../../dashboard/hooks/useDashboardSummary'
 import { toast } from '../../shared/components/Toast/toast-store'
 import { closeTurn, getCurrentTurn, openTurn } from '../services/turnApi'
 import { getTurnErrorMessage, isTurnConflict } from '../services/turnErrorMessage'
@@ -77,6 +78,7 @@ export function useMarketSession(): UseMarketSessionResult {
     mutationFn: openTurn,
     onSuccess: (turn) => {
       queryClient.setQueryData(TURN_QUERY_KEY, turn)
+      void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY })
       toast.success('Mercado aberto. Turno iniciado com sucesso.')
     },
   })
@@ -86,7 +88,10 @@ export function useMarketSession(): UseMarketSessionResult {
       closeTurn(turnId, { closingNote }),
     onSuccess: async (_data, { turnId }) => {
       queryClient.removeQueries({ queryKey: ['turns', 'summary', turnId] })
-      await queryClient.invalidateQueries({ queryKey: TURN_QUERY_KEY })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: TURN_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY }),
+      ])
       toast.success('Mercado fechado com sucesso.')
     },
   })
