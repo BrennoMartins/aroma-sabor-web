@@ -5,6 +5,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CaixaPage } from './CaixaPage'
 import type { Product } from '../../shared/api/products'
+import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
+import { SALES_QUERY_KEY } from '../../sales/hooks/useSalesHistory'
+import { STOCK_MOVEMENTS_QUERY_KEY } from '../../inventory/hooks/useStockMovements'
+import { turnSummaryQueryKey } from '../../turn/hooks/useTurnSummary'
 
 type CartItem = {
   productId: number
@@ -154,12 +158,19 @@ async function flush() {
 describe('CaixaPage checkout flow', () => {
   let container: HTMLDivElement
   let root: Root
+  let queryClient: QueryClient
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
 
     createSaleMock.mockReset()
     getByBarcodeMock.mockReset()
@@ -185,13 +196,6 @@ describe('CaixaPage checkout flow', () => {
     const cartState = createCartState(items)
     useCartMock.mockReturnValue(cartState)
     useMarketSessionMock.mockReturnValue(createMarketSessionState(isMarketOpen))
-
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
 
     await act(async () => {
       root.render(
@@ -309,6 +313,7 @@ describe('CaixaPage checkout flow', () => {
 
   it('sucesso limpa carrinho e fecha checkout', async () => {
     createSaleMock.mockResolvedValue({ id: 22, total: 10 })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
 
     const cartState = await renderWithCart([
       { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 1 },
@@ -327,6 +332,10 @@ describe('CaixaPage checkout flow', () => {
     expect(cartState.clearCart).toHaveBeenCalledTimes(1)
     expect(toastSuccessMock).toHaveBeenCalledWith('Venda concluida.')
     expect(document.body.textContent).not.toContain('Confirmar venda')
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: PRODUCTS_QUERY_KEY, exact: true })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: STOCK_MOVEMENTS_QUERY_KEY })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: SALES_QUERY_KEY })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: turnSummaryQueryKey('turn-1') })
   })
 
   it('erro mantem carrinho e mostra feedback amigavel', async () => {

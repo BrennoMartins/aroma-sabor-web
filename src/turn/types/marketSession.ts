@@ -12,7 +12,7 @@ export type MarketSession = {
 }
 
 export type TopSellingProduct = {
-  productId: string
+  productId: number
   productName: string
   quantitySold: number
   revenue: number

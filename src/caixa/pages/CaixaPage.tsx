@@ -16,7 +16,11 @@ import { toast } from '../../shared/components/Toast/toast-store'
 import { getProductLookupErrorMessage } from '../services/productLookupErrorMessage'
 import { OpenMarketModal } from '../../turn/components/OpenMarketModal'
 import { useMarketSession } from '../../turn/hooks/useMarketSession'
+import { turnSummaryQueryKey } from '../../turn/hooks/useTurnSummary'
 import { getTurnErrorMessage } from '../../turn/services/turnErrorMessage'
+import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
+import { SALES_QUERY_KEY } from '../../sales/hooks/useSalesHistory'
+import { STOCK_MOVEMENTS_QUERY_KEY } from '../../inventory/hooks/useStockMovements'
 import styles from './CaixaPage.module.css'
 
 function isTypingTarget(target: EventTarget | null) {
@@ -36,7 +40,7 @@ function isTypingTarget(target: EventTarget | null) {
 
 export function CaixaPage() {
   const { lastBarcode, onScan, isScanning } = useBarcodeScanner()
-  const { isOpen, isLoading: isTurnLoading, openMarket, isOpening } = useMarketSession()
+  const { currentTurn, isOpen, isLoading: isTurnLoading, openMarket, isOpening } = useMarketSession()
   const queryClient = useQueryClient()
   const [scanSignal, setScanSignal] = useState(0)
   const [successSignal, setSuccessSignal] = useState(0)
@@ -96,8 +100,13 @@ export function CaixaPage() {
       isSubmittingSaleRef.current = true
       loadingOverlay.show('Concluindo venda...')
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries()
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: STOCK_MOVEMENTS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: SALES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: turnSummaryQueryKey(currentTurn?.id) }),
+      ])
       toast.success('Venda concluida.')
       setSuccessSignal((currentValue) => currentValue + 1)
       setIsSaleSuccessVisible(true)

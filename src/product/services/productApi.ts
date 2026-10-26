@@ -4,9 +4,11 @@ export type ProductRecord = {
   id: number
   name: string
   barcode: string
+  categoryId: number | null
   category: string | null
   price: number
   stockQuantity: number
+  active: boolean
 }
 
 export type CreateProductRequest = {
@@ -17,6 +19,18 @@ export type CreateProductRequest = {
   stock: number
 }
 
+export type UpdateProductRequest = Omit<CreateProductRequest, 'stock'>
+
+export type StockReplenishmentRequest = {
+  quantity: number
+  reason?: string
+}
+
+export type StockAdjustmentRequest = {
+  quantityOnHand: number
+  reason: string
+}
+
 type ProductResponse = {
   id: number
   name: string
@@ -24,6 +38,7 @@ type ProductResponse = {
   category: { id: number; name: string } | null
   price: number
   stock: number
+  active: boolean
 }
 
 function mapProductResponse(product: ProductResponse): ProductRecord {
@@ -31,10 +46,24 @@ function mapProductResponse(product: ProductResponse): ProductRecord {
     id: product.id,
     name: product.name,
     barcode: product.barcode,
+    categoryId: product.category?.id ?? null,
     category: product.category?.name ?? null,
     price: product.price,
     stockQuantity: product.stock,
+    active: product.active,
   }
+}
+
+export async function getProducts() {
+  const response = await api.get<ProductResponse[]>('/products')
+
+  return response.data.map(mapProductResponse)
+}
+
+export async function getInactiveProducts() {
+  const response = await api.get<ProductResponse[]>('/products/inactive')
+
+  return response.data.map(mapProductResponse)
 }
 
 export async function getProductByBarcode(barcode: string) {
@@ -43,8 +72,42 @@ export async function getProductByBarcode(barcode: string) {
   return mapProductResponse(response.data)
 }
 
+export async function getProductById(id: number) {
+  const response = await api.get<ProductResponse>(`/products/${id}`)
+
+  return mapProductResponse(response.data)
+}
+
 export async function createProduct(payload: CreateProductRequest) {
   const response = await api.post<ProductResponse>('/products', payload)
+
+  return mapProductResponse(response.data)
+}
+
+export async function updateProduct(id: number, payload: UpdateProductRequest) {
+  const response = await api.put<ProductResponse>(`/products/${id}`, payload)
+
+  return mapProductResponse(response.data)
+}
+
+export async function deactivateProduct(id: number) {
+  await api.delete<void>(`/products/${id}`)
+}
+
+export async function reactivateProduct(id: number) {
+  const response = await api.post<ProductResponse>(`/products/${id}/reactivate`)
+
+  return mapProductResponse(response.data)
+}
+
+export async function replenishProduct(id: number, payload: StockReplenishmentRequest) {
+  const response = await api.post<ProductResponse>(`/products/${id}/replenishments`, payload)
+
+  return mapProductResponse(response.data)
+}
+
+export async function adjustProductStock(id: number, payload: StockAdjustmentRequest) {
+  const response = await api.post<ProductResponse>(`/products/${id}/stock-adjustments`, payload)
 
   return mapProductResponse(response.data)
 }
