@@ -15,6 +15,8 @@ const ProductSchema = z.object({
   barcode: z.string(),
 })
 
+const ProductListSchema = z.array(ProductSchema)
+
 export class InvalidProductResponseError extends Error {
   constructor() {
     super('Invalid product response')
@@ -26,6 +28,19 @@ export async function getByBarcode(barcode: string) {
   const response = await api.get<Product>(`/products/barcode/${barcode}`)
 
   const result = ProductSchema.safeParse(response.data)
+
+  if (!result.success) {
+    throw new InvalidProductResponseError()
+  }
+
+  return result.data
+}
+
+export async function searchProductsByName(name: string) {
+  const response = await api.get<unknown>('/products/search', {
+    params: { name },
+  })
+  const result = ProductListSchema.safeParse(response.data)
 
   if (!result.success) {
     throw new InvalidProductResponseError()

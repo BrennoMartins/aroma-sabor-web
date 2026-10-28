@@ -37,7 +37,7 @@ export type OpenMarketPayload = {
 }
 
 export type CloseMarketPayload = {
-  closingNote: string
+  closingNote?: string | null
 }
 
 export type UseMarketSessionResult = {

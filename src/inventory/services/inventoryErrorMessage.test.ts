@@ -20,4 +20,13 @@ describe('getInventoryErrorMessage', () => {
     ).toContain('conflito no código de barras')
     expect(getInventoryErrorMessage(new Error('network failure'), 'replenishment')).toContain('conexão')
   })
+
+  it('explica conflito de estoque ao registrar um descarte', () => {
+    expect(
+      getInventoryErrorMessage(
+        { isAxiosError: true, response: { status: 409 } },
+        'discard',
+      ),
+    ).toContain('estoque disponível')
+  })
 })

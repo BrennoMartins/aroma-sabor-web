@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../shared/api/axios'
 import {
   adjustProductStock,
+  discardProductStock,
   deactivateProduct,
   getInactiveProducts,
   getProductById,
@@ -213,6 +214,38 @@ describe('deactivateProduct', () => {
 
       await expect(adjustProductStock(17, payload)).resolves.toMatchObject({ id: 17, stockQuantity: 0 })
       expect(api.post).toHaveBeenCalledWith('/products/17/stock-adjustments', payload)
+    })
+
+    it('envia o descarte e valida a movimentação retornada pela API', async () => {
+      const payload = {
+        quantity: 2,
+        reason: 'DAMAGED' as const,
+        observation: 'Pacote violado',
+      }
+      const response = {
+        id: 41,
+        productId: 17,
+        productName: 'Café',
+        movementType: 'DISCARD',
+        quantity: -2,
+        createdAt: '2026-10-25T18:30:00',
+        reason: 'Pacote violado',
+        discardReason: 'DAMAGED',
+        referenceSaleId: null,
+      }
+      vi.mocked(api.post).mockResolvedValueOnce({ data: response })
+
+      await expect(discardProductStock(17, payload)).resolves.toEqual(response)
+      expect(api.post).toHaveBeenCalledWith('/products/17/discards', payload)
+    })
+
+    it('rejeita resposta do descarte fora do contrato da movimentação', async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({ data: { id: 41 } })
+
+      await expect(discardProductStock(17, {
+        quantity: 2,
+        reason: 'OTHER',
+      })).rejects.toThrow()
     })
   })
 

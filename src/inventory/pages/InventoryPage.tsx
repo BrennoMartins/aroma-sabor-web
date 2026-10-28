@@ -60,6 +60,7 @@ const movementLabels: Record<MovementType, string> = {
   SALE: 'Venda',
   ENTRY: 'Reposição',
   ADJUSTMENT: 'Ajuste',
+  DISCARD: 'Perda/descarte',
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -199,6 +200,7 @@ function MovementHistory({ products }: { products: ProductRecord[] }) {
             <option value="SALE">Venda</option>
             <option value="ENTRY">Reposição</option>
             <option value="ADJUSTMENT">Ajuste</option>
+            <option value="DISCARD">Perda/descarte</option>
           </select>
         </div>
         <Input

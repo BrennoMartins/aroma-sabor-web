@@ -40,6 +40,28 @@
   font-size: var(--font-caption-size);
 }
 
+.profitSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+}
+
+.profitSummary span,
+.profitMissing,
+.profitNotice {
+  color: var(--color-warning);
+}
+
+.profitNotice {
+  margin: 0;
+}
+
 .error {
   color: var(--color-danger);
 }

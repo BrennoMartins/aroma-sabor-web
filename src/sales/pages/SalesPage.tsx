@@ -46,6 +46,25 @@ function getTotalItems(sale: SaleRecord) {
   return sale.items.reduce((total, item) => total + item.quantity, 0)
 }
 
+function sumGrossProfitCents(sales: SaleRecord[]) {
+  const cents = sales.reduce(
+    (total, sale) => total + Math.round((sale.grossProfitKnownAmount ?? 0) * 100),
+    0,
+  )
+
+  return cents / 100
+}
+
+function formatGrossProfit(sale: SaleRecord) {
+  if (sale.status !== 'COMPLETED' || sale.grossProfitKnownAmount === null) {
+    return '—'
+  }
+  if (!sale.grossProfitComplete) {
+    return `Incompleto (${currencyFormatter.format(sale.grossProfitKnownAmount)})`
+  }
+  return currencyFormatter.format(sale.grossProfitKnownAmount)
+}
+
 function SaleDetails({ saleId }: { saleId: string }) {
   const saleQuery = useSaleDetails(saleId)
 
@@ -96,7 +115,16 @@ function SaleDetails({ saleId }: { saleId: string }) {
             <dt>Total da venda</dt>
             <dd>{currencyFormatter.format(sale.total)}</dd>
           </div>
+          <div>
+            <dt>Lucro bruto</dt>
+            <dd>{formatGrossProfit(sale)}</dd>
+          </div>
         </dl>
+        {sale.status === 'COMPLETED' && !sale.grossProfitComplete ? (
+          <p className={styles.profitNotice} role="status">
+            Lucro bruto incompleto: {sale.itemsWithoutHistoricalCost} item(ns) sem custo histórico.
+          </p>
+        ) : null}
         {sale.items.length ? (
           <div className={styles.tableWrapper}>
             <table className={styles.table}>
@@ -140,6 +168,12 @@ function SalesList() {
 
     return (!startDate || saleDate >= startDate) && (!endDate || saleDate <= endDate)
   })
+  const completedSales = filteredSales.filter((sale) => sale.status === 'COMPLETED')
+  const knownProfitTotal = sumGrossProfitCents(completedSales)
+  const missingCostItems = completedSales.reduce(
+    (total, sale) => total + sale.itemsWithoutHistoricalCost,
+    0,
+  )
 
   const clearFilters = () => {
     setStartDate('')
@@ -194,6 +228,20 @@ function SalesList() {
           {salesQuery.data?.length ? 'Nenhuma venda encontrada para o período selecionado.' : 'Ainda não há vendas registradas.'}
         </p>
       ) : (
+        <>
+        {completedSales.length ? (
+          <div className={styles.profitSummary} role="status">
+            <strong>Lucro bruto do período:</strong>
+            <span>
+              {missingCostItems
+                ? `Incompleto · conhecido ${currencyFormatter.format(knownProfitTotal)}`
+                : currencyFormatter.format(knownProfitTotal)}
+            </span>
+            {missingCostItems ? (
+              <span>{missingCostItems} item(ns) sem custo histórico</span>
+            ) : null}
+          </div>
+        ) : null}
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <caption className={styles.notice}>Vendas registradas, da mais recente para a mais antiga</caption>
@@ -203,6 +251,7 @@ function SalesList() {
                 <th scope="col">Data e hora</th>
                 <th scope="col">Itens</th>
                 <th scope="col">Total</th>
+                <th scope="col">Lucro bruto</th>
                 <th scope="col">Status</th>
                 <th scope="col">Detalhes</th>
               </tr>
@@ -214,6 +263,14 @@ function SalesList() {
                   <td>{formatDateTime(sale.createdAt)}</td>
                   <td>{quantityFormatter.format(getTotalItems(sale))}</td>
                   <td>{currencyFormatter.format(sale.total)}</td>
+                  <td>
+                    {formatGrossProfit(sale)}
+                    {sale.status === 'COMPLETED' && !sale.grossProfitComplete ? (
+                      <span className={styles.profitMissing}>
+                        {' '}· {sale.itemsWithoutHistoricalCost} sem custo
+                      </span>
+                    ) : null}
+                  </td>
                   <td>
                     <Badge variant={sale.status === 'COMPLETED' ? 'success' : 'neutral'}>
                       {formatStatus(sale.status)}
@@ -229,6 +286,7 @@ function SalesList() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </Card>
   )

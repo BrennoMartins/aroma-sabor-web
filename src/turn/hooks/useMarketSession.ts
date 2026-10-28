@@ -84,8 +84,8 @@ export function useMarketSession(): UseMarketSessionResult {
   })
 
   const closeMutation = useMutation({
-    mutationFn: ({ turnId, closingNote }: { turnId: string; closingNote: string }) =>
-      closeTurn(turnId, { closingNote }),
+    mutationFn: ({ turnId, ...payload }: { turnId: string } & Parameters<typeof closeTurn>[1]) =>
+      closeTurn(turnId, payload),
     onSuccess: async (_data, { turnId }) => {
       queryClient.removeQueries({ queryKey: ['turns', 'summary', turnId] })
       await Promise.all([
@@ -118,14 +118,14 @@ export function useMarketSession(): UseMarketSessionResult {
   )
 
   const closeMarket = useCallback(
-    async ({ closingNote }: { closingNote: string }) => {
+    async (payload: Parameters<typeof closeTurn>[1]) => {
       const currentTurn = currentTurnQuery.data
 
       if (!currentTurn) {
         throw new Error('No open turn found.')
       }
 
-      await closeMutation.mutateAsync({ turnId: currentTurn.id, closingNote })
+      await closeMutation.mutateAsync({ turnId: currentTurn.id, ...payload })
     },
     [closeMutation, currentTurnQuery.data],
   )

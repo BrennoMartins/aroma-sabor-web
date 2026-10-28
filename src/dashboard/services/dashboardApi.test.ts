@@ -20,6 +20,9 @@ const summary = {
   revenue: 58.5,
   salesCount: 2,
   averageTicket: 29.25,
+  grossProfitKnownAmount: 14.5,
+  grossProfitComplete: true,
+  itemsWithoutHistoricalCost: 0,
   currentTurn: {
     id: '7a25b021-7f7c-4c0c-a343-2d7c784d5339',
     openedAt: '2026-10-26T08:00:00',

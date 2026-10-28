@@ -302,7 +302,20 @@ export function SalesReportPage() {
               icon={TrendingUp}
               tone="warning"
             />
+            <ReportMetric
+              label="Lucro bruto"
+              value={report.grossProfitComplete
+                ? currencyFormatter.format(report.grossProfitKnownAmount)
+                : `Incompleto · conhecido ${currencyFormatter.format(report.grossProfitKnownAmount)}`}
+              icon={TrendingUp}
+              tone={report.grossProfitComplete ? 'success' : 'warning'}
+            />
           </section>
+          {!report.grossProfitComplete ? (
+            <p className={styles.profitNotice} role="status">
+              Lucro bruto incompleto: {report.itemsWithoutHistoricalCost} item(ns) sem custo histórico no período.
+            </p>
+          ) : null}
           <DailySalesSeries report={report} />
         </div>
       ) : null}

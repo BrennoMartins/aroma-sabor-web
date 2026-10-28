@@ -113,8 +113,14 @@
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-md);
+}
+
+.profitNotice {
+  margin: calc(-1 * var(--space-md)) 0 0;
+  color: var(--color-warning);
+  font-size: var(--font-caption-size);
 }
 
 .metricCard {
