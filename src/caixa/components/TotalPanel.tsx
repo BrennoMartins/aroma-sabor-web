@@ -1,4 +1,3 @@
-import { Button } from '../../shared/components/Button/Button'
 import { Card } from '../../shared/components/Card/Card'
 import styles from './TotalPanel.module.css'
 
@@ -7,7 +6,6 @@ type TotalPanelProps = {
   discountAmount: number
   total: number
   totalItems: number
-  onEditDiscount: () => void
 }
 
 function formatCurrency(value: number) {
@@ -17,7 +15,7 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
-export function TotalPanel({ subtotal, discountAmount, total, totalItems, onEditDiscount }: TotalPanelProps) {
+export function TotalPanel({ subtotal, discountAmount, total, totalItems }: TotalPanelProps) {
   return (
     <Card title="Resumo da venda" className={styles.card}>
       <div className={styles.metric}>
@@ -28,9 +26,6 @@ export function TotalPanel({ subtotal, discountAmount, total, totalItems, onEdit
       <div className={styles.metric}>
         <span className={styles.label}>Desconto</span>
         <strong className={styles.count}>- {formatCurrency(discountAmount)}</strong>
-        <Button type="button" variant="secondary" onClick={onEditDiscount}>
-          {discountAmount > 0 ? 'Alterar desconto (F8)' : 'Aplicar desconto (F8)'}
-        </Button>
       </div>
 
       <div className={styles.metric}>
@@ -45,6 +40,10 @@ export function TotalPanel({ subtotal, discountAmount, total, totalItems, onEdit
 
       <div className={styles.shortcutList}>
         <div className={styles.shortcutItem}>
+          <span>F2</span>
+          <strong>Adicionar produto</strong>
+        </div>
+        <div className={styles.shortcutItem}>
           <span>F8</span>
           <strong>Desconto</strong>
         </div>
@@ -57,8 +56,6 @@ export function TotalPanel({ subtotal, discountAmount, total, totalItems, onEdit
           <strong>Cancelar</strong>
         </div>
       </div>
-
-      <p className={styles.hint}>Use o scanner e o teclado para concluir a venda sem tirar as maos do caixa.</p>
     </Card>
   )
 }

@@ -50,6 +50,32 @@ describe('cart operations', () => {
     expect(calculateCartTotals(items)).toEqual({ totalItems: 1, subtotal: 5.5, discountAmount: 0, total: 5.5 })
   })
 
+  it('adiciona quantidade valida em uma linha e preserva preco negociado', () => {
+    const negotiatedItem = {
+      productId: 1,
+      name: 'Cafe',
+      price: 12,
+      catalogPrice: 10,
+      barcode: '123',
+      quantity: 2,
+    }
+
+    expect(addProductToCart([], coffee, 3)[0]).toMatchObject({ quantity: 3, price: 10 })
+    expect(addProductToCart([negotiatedItem], coffee, 3)).toEqual([
+      { ...negotiatedItem, quantity: 5 },
+    ])
+  })
+
+  it('rejeita quantidade invalida, produto inativo e quantidade acima do estoque', () => {
+    const inStockProduct: Product = { ...coffee, stock: 3, active: true }
+    const existing = [{ productId: 1, name: 'Cafe', price: 10, catalogPrice: 10, barcode: '123', quantity: 2 }]
+
+    expect(addProductToCart([], coffee, 0)).toEqual([])
+    expect(addProductToCart([], coffee, -1)).toEqual([])
+    expect(addProductToCart([], { ...coffee, active: false })).toEqual([])
+    expect(addProductToCart(existing, inStockProduct, 2)).toBe(existing)
+  })
+
   it('soma em centavos sem acumular erro de ponto flutuante', () => {
     const items = [
       { productId: 1, name: 'A', price: 0.1, catalogPrice: 0.1, barcode: '1', quantity: 3 },
@@ -129,6 +155,20 @@ describe('useCart', () => {
     expect(harness.cart.items).toHaveLength(1)
     expect(harness.cart.items[0]).toMatchObject({ price: 15, quantity: 2 })
     expect(harness.cart.subtotal).toBe(30)
+    harness.unmount()
+  })
+
+  it('mantem o desconto quando a inclusao aumenta o subtotal', () => {
+    const harness = renderCart()
+    act(() => {
+      harness.cart.addProduct(coffee)
+      harness.cart.setDiscountAmount(5)
+      harness.cart.addProduct(bread, 2)
+    })
+
+    expect(harness.cart.items).toHaveLength(2)
+    expect(harness.cart.discountAmount).toBe(5)
+    expect(harness.cart.total).toBe(16)
     harness.unmount()
   })
 

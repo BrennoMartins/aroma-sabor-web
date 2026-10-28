@@ -55,9 +55,14 @@ vi.mock('../../turn/hooks/useMarketSession', () => ({
   useMarketSession: () => useMarketSessionMock(),
 }))
 
-vi.mock('../hooks/useCart', () => ({
-  useCart: () => useCartMock(),
-}))
+vi.mock('../hooks/useCart', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../hooks/useCart')>()
+
+  return {
+    ...actual,
+    useCart: () => useCartMock(),
+  }
+})
 
 vi.mock('../services/saleApi', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/saleApi')>()
@@ -263,6 +268,11 @@ describe('CaixaPage checkout flow', () => {
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0))
     })
+  }
+
+  async function openManualModal() {
+    act(() => pressKey('F2'))
+    await waitForAnimationFrame()
   }
 
   it('mostra a tela de mercado fechado quando nao ha turno aberto', async () => {
@@ -732,111 +742,49 @@ describe('CaixaPage checkout flow', () => {
     expect(cartState.addProduct).not.toHaveBeenCalled()
   })
 
-  it('localiza pelo codigo digitado e adiciona sem remover itens existentes', async () => {
-    const product: Product = {
-      id: 8,
-      name: 'Cafe Especial',
-      price: 18.5,
-      barcode: '7890008',
-    }
-    getByBarcodeMock.mockResolvedValueOnce(product)
-    const cartState = await renderWithCart([
-      { productId: 1, name: 'Arroz', price: 10, barcode: '111', quantity: 2 },
-    ])
+  it('abre o modal com F2, move o foco para a busca e remove os campos da tela principal', async () => {
+    await renderWithCart([])
 
-    act(() => setFieldValue('[name="manualBarcode"]', '7890008'))
-    const barcodeForm = document.querySelector<HTMLFormElement>('[name="manualBarcode"]')?.form
-    if (!barcodeForm) {
-      throw new Error('Manual barcode form not found')
-    }
-    act(() => {
-      barcodeForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-    })
-    await flush()
+    expect(document.querySelector('[name="manualBarcode"]')).toBeNull()
+    expect(document.querySelector('[name="manualProductName"]')).toBeNull()
+    const event = new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true })
+    act(() => window.dispatchEvent(event))
+    await waitForAnimationFrame()
 
-    expect(getByBarcodeMock.mock.calls[0]?.[0]).toBe('7890008')
-    expect(document.body.textContent).toContain('Produto localizado.')
-    expect(document.body.textContent).toContain('Cafe Especial')
-
-    const addButton = Array.from(document.querySelectorAll('button')).find(
-      (candidate) => candidate.textContent?.trim() === 'Adicionar ao carrinho',
-    )
-    if (!addButton) {
-      throw new Error('Manual add button not found')
-    }
-    await act(async () => {
-      addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await Promise.resolve()
-    })
-
-    expect(cartState.addProduct).toHaveBeenCalledTimes(1)
-    expect(cartState.addProduct).toHaveBeenCalledWith(product)
-    expect(cartState.clearCart).not.toHaveBeenCalled()
-    expect(document.body.textContent).toContain('Arroz')
-    expect(document.body.textContent).toContain('Cafe Especial adicionado ao carrinho.')
+    const dialog = document.querySelector('[role="dialog"]')
+    const searchInput = document.querySelector<HTMLInputElement>('[name="manualProductSearch"]')
+    expect(event.defaultPrevented).toBe(true)
+    expect(dialog?.getAttribute('aria-labelledby')).not.toBeNull()
+    expect(document.activeElement).toBe(searchInput)
+    expect(document.querySelector('[aria-keyshortcuts="F2"]')).toBeNull()
+    expect(document.body.textContent).toContain('F2')
+    expect(document.body.textContent).not.toContain('Adicionar produto (F2)')
   })
 
-  it('informa que o codigo nao foi encontrado sem oferecer cadastro nem limpar o carrinho', async () => {
-    getByBarcodeMock.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 404 },
-    })
-    const cartState = await renderWithCart([
-      { productId: 1, name: 'Arroz', price: 10, barcode: '111', quantity: 2 },
-    ])
-
-    act(() => setFieldValue('[name="manualBarcode"]', '000'))
-    act(() => {
-      clickByText('Buscar código')
-    })
-    await flush()
-
-    expect(document.body.textContent).toContain('Produto nao encontrado.')
-    expect(document.body.textContent).not.toContain('Deseja cadastra-lo?')
-    expect(cartState.addProduct).not.toHaveBeenCalled()
-    expect(cartState.clearCart).not.toHaveBeenCalled()
-  })
-
-  it('mostra erro tecnico de codigo sem confundi-lo com produto inexistente', async () => {
-    getByBarcodeMock.mockRejectedValueOnce({
-      isAxiosError: true,
-      response: { status: 503 },
-    })
-    const cartState = await renderWithCart([
-      { productId: 1, name: 'Arroz', price: 10, barcode: '111', quantity: 2 },
-    ])
-
-    act(() => setFieldValue('[name="manualBarcode"]', '789'))
-    act(() => {
-      clickByText('Buscar código')
-    })
-    await flush()
-
-    expect(document.body.textContent).toContain('Servico indisponivel no momento.')
-    expect(cartState.items).toHaveLength(1)
-    expect(cartState.clearCart).not.toHaveBeenCalled()
-  })
-
-  it('pesquisa parte do nome, permite escolher entre resultados e usa o carrinho existente', async () => {
+  it('pesquisa por nome e adiciona quantidade informada através do carrinho existente', async () => {
     const selectedProduct: Product = {
       id: 3,
       name: 'Cafe Soluvel',
       price: 9.75,
       barcode: '7893',
+      stock: 10,
+      active: true,
     }
     const otherProduct: Product = {
       id: 4,
       name: 'Cafe Torrado',
       price: 14.5,
       barcode: '7894',
+      stock: 6,
+      active: true,
     }
     searchProductsByNameMock.mockResolvedValueOnce([otherProduct, selectedProduct])
     const cartState = await renderWithCart([
       { productId: 1, name: 'Arroz', price: 10, barcode: '111', quantity: 2 },
     ])
 
-    act(() => setFieldValue('[name="manualProductName"]', 'cafe'))
+    await openManualModal()
+    act(() => setFieldValue('[name="manualProductSearch"]', 'cafe'))
     await waitForNameSearch()
 
     expect(searchProductsByNameMock).toHaveBeenCalledTimes(1)
@@ -844,55 +792,72 @@ describe('CaixaPage checkout flow', () => {
     expect(document.body.textContent).toContain('Cafe Soluvel')
     expect(document.body.textContent).toContain('Cafe Torrado')
     expect(document.body.textContent).toContain('7893')
+    expect(document.body.textContent).toContain('Disponível: 10')
 
     const results = document.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')
     act(() => {
       results[1]?.click()
     })
     expect(document.body.textContent).toContain('Selecionado: Cafe Soluvel')
+    act(() => setFieldValue('[name="manualQuantity"]', '3'))
 
     await act(async () => {
       clickByText('Adicionar ao carrinho')
       await Promise.resolve()
     })
 
-    expect(cartState.addProduct).toHaveBeenCalledWith(selectedProduct)
+    expect(cartState.addProduct).toHaveBeenCalledWith(selectedProduct, 3)
     expect(cartState.items).toHaveLength(1)
     expect(cartState.clearCart).not.toHaveBeenCalled()
-    expect(document.querySelector<HTMLInputElement>('[name="manualProductName"]')?.value).toBe('')
+    expect(document.querySelector<HTMLInputElement>('[name="manualProductSearch"]')).toBeNull()
     expect(document.querySelector('ul[aria-label="Produtos encontrados"]')).toBeNull()
     await waitForAnimationFrame()
-    expect(document.activeElement).toBe(document.querySelector('[name="manualBarcode"]'))
+    expect(document.activeElement).toBe(document.querySelector('[aria-hidden="true"][tabindex="-1"]'))
+  })
 
-    searchProductsByNameMock.mockResolvedValueOnce([otherProduct])
-    act(() => setFieldValue('[name="manualProductName"]', 'torrado'))
+  it('pesquisa por código de barras com a consulta exata após o debounce', async () => {
+    const product: Product = {
+      id: 8,
+      name: 'Cafe Especial',
+      price: 18.5,
+      barcode: '7890008',
+      stock: 4,
+      active: true,
+    }
+    getByBarcodeMock.mockResolvedValueOnce(product)
+    const cartState = await renderWithCart([])
+
+    await openManualModal()
+    act(() => setFieldValue('[name="manualProductSearch"]', '7890008'))
     await waitForNameSearch()
-    expect(document.body.textContent).toContain('Cafe Torrado')
-    act(() => {
-      document.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')[0]?.click()
-    })
+
+    expect(getByBarcodeMock).toHaveBeenCalledWith('7890008')
+    expect(searchProductsByNameMock).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Cafe Especial')
+    expect(document.body.textContent).toContain('Disponível: 4')
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-pressed]')?.click())
+    act(() => setFieldValue('[name="manualQuantity"]', '2'))
 
     await act(async () => {
       clickByText('Adicionar ao carrinho')
       await Promise.resolve()
     })
 
-    expect(cartState.addProduct).toHaveBeenCalledTimes(2)
-    expect(cartState.addProduct).toHaveBeenLastCalledWith(otherProduct)
-    expect(document.querySelector<HTMLInputElement>('[name="manualProductName"]')?.value).toBe('')
-    expect(document.querySelector('ul[aria-label="Produtos encontrados"]')).toBeNull()
-    expect(cartState.items).toHaveLength(1)
-    expect(cartState.clearCart).not.toHaveBeenCalled()
+    expect(cartState.addProduct).toHaveBeenCalledWith(product, 2)
   })
 
-  it('apresenta o estado de carregamento e a ausência de resultados da pesquisa por nome', async () => {
+  it('apresenta carregamento, resultados vazios e erros de API na busca', async () => {
     let resolveSearch: ((products: Product[]) => void) | null = null
+    getByBarcodeMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 404 },
+    })
     searchProductsByNameMock.mockImplementationOnce(() => new Promise((resolve) => {
       resolveSearch = resolve
     }))
     await renderWithCart([])
-
-    act(() => setFieldValue('[name="manualProductName"]', 'inexistente'))
+    await openManualModal()
+    act(() => setFieldValue('[name="manualProductSearch"]', 'inexistente'))
     await waitForNameSearch()
 
     expect(document.body.textContent).toContain('Pesquisando produtos...')
@@ -902,27 +867,67 @@ describe('CaixaPage checkout flow', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 10))
     })
     expect(document.body.textContent).toContain('Nenhum produto encontrado.')
-  })
 
-  it('apresenta erro de API na busca por nome e preserva o carrinho', async () => {
+    act(() => setFieldValue('[name="manualProductSearch"]', 'cafe'))
     searchProductsByNameMock.mockRejectedValueOnce({
       isAxiosError: true,
       response: { status: 500 },
     })
+    await waitForNameSearch()
+    expect(document.body.textContent).toContain('Servico indisponivel no momento.')
+  })
+
+  it('rejeita quantidade inválida, produto inativo e produto sem estoque', async () => {
+    const inStock: Product = { id: 9, name: 'Cafe', price: 8, barcode: '1234', stock: 3, active: true }
+    const inactive: Product = { id: 10, name: 'Produto inativo', price: 2, barcode: '1235', active: false }
+    const noStock: Product = { id: 11, name: 'Sem estoque', price: 4, barcode: '1236', stock: 0, active: true }
+    searchProductsByNameMock
+      .mockResolvedValueOnce([inStock, inactive, noStock])
+      .mockResolvedValueOnce([noStock])
+    const cartState = await renderWithCart([])
+    await openManualModal()
+    act(() => setFieldValue('[name="manualProductSearch"]', 'cafe'))
+    await waitForNameSearch()
+
+    const addButton = () => Array.from(document.querySelectorAll('button')).find(
+      (candidate) => candidate.textContent?.trim() === 'Adicionar ao carrinho',
+    ) as HTMLButtonElement
+
+    const resultButtons = document.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')
+    expect(resultButtons[1]?.disabled).toBe(true)
+    act(() => resultButtons[0]?.click())
+    act(() => setFieldValue('[name="manualQuantity"]', '0'))
+    expect(addButton().disabled).toBe(true)
+    expect(document.body.textContent).toContain('quantidade inteira maior que zero')
+
+    act(() => setFieldValue('[name="manualQuantity"]', '1'))
+    expect(addButton().disabled).toBe(false)
+    act(() => setFieldValue('[name="manualProductSearch"]', 'sem'))
+    await waitForNameSearch()
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-pressed]')?.click())
+    expect(document.body.textContent).toContain('Sem estoque disponível')
+    expect(addButton().disabled).toBe(true)
+    expect(cartState.addProduct).not.toHaveBeenCalled()
+  })
+
+  it('cancela e fecha com Escape sem alterar o carrinho nem cancelar a venda', async () => {
     const cartState = await renderWithCart([
       { productId: 1, name: 'Arroz', price: 10, barcode: '111', quantity: 2 },
     ])
+    await openManualModal()
 
-    act(() => setFieldValue('[name="manualProductName"]', 'cafe'))
-    await waitForNameSearch()
-
-    expect(document.body.textContent).toContain('Servico indisponivel no momento.')
-    expect(cartState.items).toHaveLength(1)
+    act(() => clickByText('Cancelar'))
     expect(cartState.addProduct).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain('Cancelar venda?')
+
+    await openManualModal()
+    act(() => pressKey('Escape'))
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.body.textContent).not.toContain('Cancelar venda?')
     expect(cartState.clearCart).not.toHaveBeenCalled()
   })
 
-  it('ignora leituras do scanner quando o foco esta na busca manual e mantém o scanner fora dela', async () => {
+  it('scanner continua adicionando produtos e ignora uma leitura enquanto o modal está aberto', async () => {
     const product: Product = {
       id: 8,
       name: 'Cafe Especial',
@@ -932,14 +937,12 @@ describe('CaixaPage checkout flow', () => {
     getByBarcodeMock.mockResolvedValue(product)
     const cartState = await renderWithCart([])
 
-    const barcodeInput = document.querySelector<HTMLInputElement>('[name="manualBarcode"]')
-    act(() => {
-      barcodeInput?.focus()
-      scannerListener?.('7890008')
-    })
+    await openManualModal()
+    await act(async () => scannerListener?.('7890008'))
     expect(getByBarcodeMock).not.toHaveBeenCalled()
     expect(cartState.addProduct).not.toHaveBeenCalled()
 
+    act(() => clickByText('Cancelar'))
     act(() => {
       document.querySelector<HTMLElement>('[aria-hidden="true"][tabindex="-1"]')?.focus()
       scannerListener?.('7890008')
@@ -964,6 +967,7 @@ describe('CaixaPage desconto e preco unitario', () => {
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     createSaleMock.mockReset()
     getByBarcodeMock.mockReset()
+    searchProductsByNameMock.mockReset()
     toastInfoMock.mockReset()
     toastErrorMock.mockReset()
     useCartMock.mockReset()
@@ -1011,23 +1015,98 @@ describe('CaixaPage desconto e preco unitario', () => {
 
     expect(document.body.textContent).toContain('Subtotal')
     expect(document.body.textContent).toContain('- R$')
+    expect(document.body.textContent).toContain('F2')
+    expect(document.body.textContent).toContain('Adicionar produto')
     expect(document.body.textContent).toContain('F8')
+    expect(document.body.textContent).toContain('Desconto')
+    expect(document.body.textContent).toContain('F9')
+    expect(document.body.textContent).toContain('Finalizar')
+    expect(document.body.textContent).toContain('ESC')
+    expect(document.body.textContent).toContain('Cancelar')
+    expect(document.body.textContent).not.toContain('Aplicar desconto (F8)')
+    expect(document.body.textContent).not.toContain('Alterar desconto (F8)')
+    expect(document.body.textContent).not.toContain('Use o scanner e o teclado para concluir a venda sem tirar as maos do caixa.')
+    expect(document.querySelectorAll('button').length).not.toBe(0)
+    expect(Array.from(document.querySelectorAll('button')).some((button) =>
+      /Adicionar produto|Aplicar desconto|Alterar desconto/.test(button.textContent ?? ''),
+    )).toBe(false)
   })
 
   it('abre o desconto com F8, inclusive com foco em input, sem digitar nada nele', async () => {
     await render([coffee])
-    const barcodeInput = document.querySelector<HTMLInputElement>('[name="manualBarcode"]')
-    barcodeInput?.focus()
+    const textInput = document.createElement('input')
+    document.body.appendChild(textInput)
+    textInput.focus()
 
     const event = new KeyboardEvent('keydown', { key: 'F8', bubbles: true, cancelable: true })
     act(() => {
-      barcodeInput?.dispatchEvent(event)
+      textInput.dispatchEvent(event)
     })
 
     expect(event.defaultPrevented).toBe(true)
     expect(document.body.textContent).toContain('Desconto da venda')
     expect(document.body.textContent).not.toContain('Confirmar venda')
-    expect(barcodeInput?.value).toBe('')
+    expect(textInput.value).toBe('')
+  })
+
+  it('F2 nao abre com o turno fechado, com outro modal aberto ou durante finalizacao', async () => {
+    await render([coffee], 0, false)
+    act(() => pressKey('F2'))
+    expect(document.body.textContent).not.toContain('Adicionar produto ao carrinho')
+
+    act(() => {
+      root.unmount()
+    })
+    root = createRoot(container)
+    await render([coffee])
+    act(() => pressKey('F8'))
+    act(() => pressKey('F2'))
+    expect(document.body.textContent).not.toContain('Adicionar produto ao carrinho')
+
+    act(() => pressKey('Escape'))
+    act(() => pressKey('F9'))
+    act(() => pressKey('F2'))
+    expect(document.body.textContent).toContain('Confirmar venda')
+    expect(document.body.textContent).not.toContain('Adicionar produto ao carrinho')
+
+    const deferred = createSaleDeferred()
+    createSaleMock.mockImplementation(() => deferred.promise)
+    act(() => clickByText('Finalizar venda'))
+    await flush()
+    act(() => pressKey('F2'))
+    expect(document.body.textContent).not.toContain('Adicionar produto ao carrinho')
+    await act(async () => {
+      deferred.resolve({ id: 1, total: 20 })
+      await deferred.promise
+    })
+  })
+
+  it('F2 nao abre quando o foco está em um campo de texto', async () => {
+    await render([coffee])
+    const textInput = document.createElement('input')
+    document.body.appendChild(textInput)
+    textInput.focus()
+    const event = new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true })
+
+    act(() => textInput.dispatchEvent(event))
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(document.body.textContent).not.toContain('Adicionar produto ao carrinho')
+  })
+
+  it('F2 nao abre enquanto outro modal está aberto', async () => {
+    await render([coffee])
+    const otherDialog = document.createElement('section')
+    otherDialog.setAttribute('role', 'dialog')
+    const searchInput = document.createElement('input')
+    otherDialog.appendChild(searchInput)
+    document.body.appendChild(otherDialog)
+    searchInput.focus()
+
+    act(() => pressKey('F2'))
+
+    expect(document.body.textContent).not.toContain('Adicionar produto ao carrinho')
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1)
   })
 
   it('nao abre F8 sem itens, com mercado fechado ou com outro modal aberto', async () => {

@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { Button } from '../../shared/components/Button/Button'
 import { CartTable } from '../components/CartTable'
 import { CheckoutModal } from '../components/CheckoutModal'
+import { ManualProductModal } from '../components/ManualProductModal'
 import { MoneyAmountModal } from '../components/MoneyAmountModal'
 import { ScannerAudioFeedback } from '../components/ScannerAudioFeedback'
 import { TotalPanel } from '../components/TotalPanel'
-import { useCart } from '../hooks/useCart'
+import { getProductAdditionError, useCart } from '../hooks/useCart'
 import { getCheckoutErrorMessage } from '../services/checkoutErrorMessage'
 import { createSale } from '../services/saleApi'
 import { formatCurrency, fromCents, toCents } from '../utils/money'
-import { getByBarcode, searchProductsByName } from '../../shared/api/products'
+import { getByBarcode } from '../../shared/api/products'
 import type { Product } from '../../shared/api/products'
-import { Input } from '../../shared/components/Input/Input'
 import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
 import { ConfirmDialog } from '../../shared/components/ConfirmDialog/ConfirmDialog'
 import { loadingOverlay } from '../../shared/components/LoadingOverlay/loading-overlay-store'
@@ -35,11 +35,6 @@ import { ProductForm } from '../../product/components/ProductForm'
 import { createProduct, type CreateProductRequest } from '../../product/services/productApi'
 import styles from './CaixaPage.module.css'
 
-const currencyFormatter = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-})
-
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false
@@ -55,14 +50,6 @@ function isTypingTarget(target: EventTarget | null) {
   )
 }
 
-function getManualNameSearchErrorMessage(error: unknown) {
-  if (isAxiosError(error) && error.response?.status === 404) {
-    return 'Nao foi possivel pesquisar produtos por nome. Tente novamente.'
-  }
-
-  return getProductLookupErrorMessage(error)
-}
-
 export function CaixaPage() {
   const { onScan } = useBarcodeScanner()
   const { currentTurn, isOpen, isLoading: isTurnLoading, openMarket, isOpening } = useMarketSession()
@@ -76,19 +63,10 @@ export function CaixaPage() {
   const [isProductFormOpen, setIsProductFormOpen] = useState(false)
   const [isSaleSuccessVisible, setIsSaleSuccessVisible] = useState(false)
   const [isOpenMarketModalVisible, setIsOpenMarketModalVisible] = useState(false)
+  const [isManualProductOpen, setIsManualProductOpen] = useState(false)
   const [openMarketError, setOpenMarketError] = useState<string | null>(null)
-  const [manualBarcode, setManualBarcode] = useState('')
-  const [manualBarcodeMessage, setManualBarcodeMessage] = useState<string | null>(null)
-  const [manualName, setManualName] = useState('')
-  const [debouncedManualName, setDebouncedManualName] = useState('')
-  const [selectedManualProduct, setSelectedManualProduct] = useState<Product | null>(null)
-  const [manualAddMessage, setManualAddMessage] = useState<string | null>(null)
-  const [isManualAddLocked, setIsManualAddLocked] = useState(false)
   const scannerAnchorRef = useRef<HTMLDivElement | null>(null)
-  const manualBarcodeInputRef = useRef<HTMLInputElement | null>(null)
-  const manualSearchRef = useRef<HTMLElement | null>(null)
   const successTimeoutRef = useRef<number | null>(null)
-  const isManualAddLockedRef = useRef(false)
   const isSubmittingSaleRef = useRef(false)
   const {
     items,
@@ -114,22 +92,11 @@ export function CaixaPage() {
     isCancelDialogOpen ||
     isDiscountOpen ||
     priceEditItem !== null ||
-    missingProductBarcode !== null
+    missingProductBarcode !== null ||
+    isProductFormOpen ||
+    isOpenMarketModalVisible ||
+    isManualProductOpen
   const isMarketOpen = isOpen
-
-  const manualNameQuery = useQuery({
-    queryKey: ['cashier-product-search', debouncedManualName],
-    queryFn: () => searchProductsByName(debouncedManualName),
-    enabled: isMarketOpen && debouncedManualName.length >= 2,
-  })
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDebouncedManualName(manualName.trim())
-    }, 300)
-
-    return () => window.clearTimeout(timeout)
-  }, [manualName])
 
   const focusScannerAnchor = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -137,15 +104,16 @@ export function CaixaPage() {
     })
   }, [])
 
-  const focusManualBarcodeInput = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      manualBarcodeInputRef.current?.focus()
-    })
-  }, [])
-
   const productLookup = useMutation({
     mutationFn: getByBarcode,
     onSuccess: (product) => {
+      const error = getProductAdditionError(items, product, 1)
+      if (error) {
+        toast.error(error)
+        setErrorSignal((currentValue) => currentValue + 1)
+        return
+      }
+
       addProduct(product)
       toast.info(`${product.name} adicionado ao carrinho.`)
     },
@@ -158,18 +126,6 @@ export function CaixaPage() {
 
       toast.error(getProductLookupErrorMessage(error))
       setErrorSignal((currentValue) => currentValue + 1)
-    },
-  })
-
-  const manualBarcodeLookup = useMutation({
-    mutationFn: getByBarcode,
-    onSuccess: (product) => {
-      setSelectedManualProduct(product)
-      setManualBarcodeMessage('Produto localizado. Confirme e adicione ao carrinho.')
-    },
-    onError: (error) => {
-      setSelectedManualProduct(null)
-      setManualBarcodeMessage(getProductLookupErrorMessage(error))
     },
   })
 
@@ -205,8 +161,7 @@ export function CaixaPage() {
       isAnyModalOpen ||
       !isMarketOpen ||
       productLookup.isPending ||
-      manualBarcodeLookup.isPending ||
-      manualSearchRef.current?.contains(document.activeElement)
+      isSubmittingSaleRef.current
     ) {
       return
     }
@@ -214,38 +169,21 @@ export function CaixaPage() {
     productLookup.mutate(barcode)
   })
 
-  const handleManualBarcodeSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const barcode = manualBarcode.trim()
-    if (!barcode || manualBarcodeLookup.isPending) {
-      return
+  const handleManualAdd = (product: Product, quantity: number) => {
+    if (!isMarketOpen) {
+      toast.error('Abra o mercado antes de adicionar produtos.')
+      return false
     }
 
-    setSelectedManualProduct(null)
-    setManualBarcodeMessage(null)
-    setManualAddMessage(null)
-    manualBarcodeLookup.mutate(barcode)
-  }
-
-  const handleManualAdd = () => {
-    if (!selectedManualProduct || isManualAddLockedRef.current) {
-      return
+    const error = getProductAdditionError(items, product, quantity)
+    if (error) {
+      toast.error(error)
+      return false
     }
 
-    isManualAddLockedRef.current = true
-    setIsManualAddLocked(true)
-    addProduct(selectedManualProduct)
-    const message = `${selectedManualProduct.name} adicionado ao carrinho.`
-    setManualAddMessage(message)
-    toast.info(message)
-    setSelectedManualProduct(null)
-    setManualName('')
-    setDebouncedManualName('')
-    focusManualBarcodeInput()
-    queueMicrotask(() => {
-      isManualAddLockedRef.current = false
-      setIsManualAddLocked(false)
-    })
+    addProduct(product, quantity)
+    toast.info(`${product.name} adicionado ao carrinho.`)
+    return true
   }
 
   const checkoutMutation = useMutation({
@@ -415,6 +353,26 @@ export function CaixaPage() {
         return
       }
 
+      if (event.key === 'F2') {
+        if (
+          isTypingTarget(event.target) ||
+          document.querySelector('[role="dialog"]') !== null ||
+          productLookup.isPending ||
+          checkoutMutation.isPending ||
+          isSubmittingSaleRef.current
+        ) {
+          return
+        }
+
+        event.preventDefault()
+
+        if (!event.repeat) {
+          setIsManualProductOpen(true)
+        }
+
+        return
+      }
+
       if (isTypingTarget(event.target)) {
         return
       }
@@ -443,7 +401,7 @@ export function CaixaPage() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isAnyModalOpen, isMarketOpen, items.length])
+  }, [checkoutMutation.isPending, isAnyModalOpen, isMarketOpen, items.length, productLookup.isPending])
 
   return (
     <section className={["page-card", styles.page].join(' ')}>
@@ -471,120 +429,6 @@ export function CaixaPage() {
 
       {isMarketOpen ? (
         <>
-          <section ref={manualSearchRef} className={styles.manualSearch} aria-label="Busca manual de produtos">
-            <h3 className={styles.manualSearchTitle}>Localizar produto manualmente</h3>
-            <div className={styles.manualSearchGrid}>
-              <form className={styles.searchForm} onSubmit={handleManualBarcodeSubmit}>
-                <Input
-                  label="Código do produto ou código de barras"
-                  name="manualBarcode"
-                  ref={manualBarcodeInputRef}
-                  autoComplete="off"
-                  value={manualBarcode}
-                  onFocus={() => setManualBarcodeMessage(null)}
-                  onChange={(event) => {
-                    setManualBarcode(event.target.value)
-                    setSelectedManualProduct(null)
-                    setManualBarcodeMessage(null)
-                  }}
-                />
-                <Button
-                  type="submit"
-                  loading={manualBarcodeLookup.isPending}
-                  disabled={!manualBarcode.trim()}
-                >
-                  Buscar código
-                </Button>
-                {manualBarcodeMessage ? (
-                  <p
-                    className={manualBarcodeLookup.isError ? styles.searchError : styles.searchStatus}
-                    role={manualBarcodeLookup.isError ? 'alert' : 'status'}
-                  >
-                    {manualBarcodeMessage}
-                  </p>
-                ) : null}
-              </form>
-
-              <div className={styles.searchForm}>
-                <Input
-                  label="Nome do produto"
-                  name="manualProductName"
-                  autoComplete="off"
-                  value={manualName}
-                  onChange={(event) => {
-                    setManualName(event.target.value)
-                    setSelectedManualProduct(null)
-                    setManualAddMessage(null)
-                  }}
-                />
-                {manualName.trim().length < 2 ? (
-                  <p className={styles.searchStatus}>Digite ao menos 2 caracteres para pesquisar.</p>
-                ) : manualName.trim() !== debouncedManualName ? (
-                  <p className={styles.searchStatus} role="status" aria-busy="true">
-                    Aguardando sua pesquisa...
-                  </p>
-                ) : manualNameQuery.isFetching ? (
-                  <p className={styles.searchStatus} role="status" aria-busy="true">
-                    Pesquisando produtos...
-                  </p>
-                ) : manualNameQuery.isError ? (
-                  <p className={styles.searchError} role="alert">
-                    {getManualNameSearchErrorMessage(manualNameQuery.error)}
-                  </p>
-                ) : manualNameQuery.data?.length ? (
-                  <ul className={styles.searchResults} aria-label="Produtos encontrados">
-                    {manualNameQuery.data.map((product) => (
-                      <li key={product.id}>
-                        <button
-                          type="button"
-                          className={styles.searchResult}
-                          aria-pressed={selectedManualProduct?.id === product.id}
-                          onClick={() => {
-                            setSelectedManualProduct(product)
-                            setManualAddMessage(null)
-                          }}
-                        >
-                          <span>
-                            <strong>{product.name}</strong>
-                            <small>Código: {product.barcode}</small>
-                          </span>
-                          <span className={styles.resultPrice}>
-                            {currencyFormatter.format(product.price)}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : manualName.trim() === debouncedManualName ? (
-                  <p className={styles.searchStatus} role="status">Nenhum produto encontrado.</p>
-                ) : null}
-              </div>
-            </div>
-
-            {selectedManualProduct ? (
-              <div className={styles.selectedProduct} role="status">
-                <p>
-                  Selecionado: <strong>{selectedManualProduct.name}</strong> · Código {selectedManualProduct.barcode}
-                  {' · '}
-                  {currencyFormatter.format(selectedManualProduct.price)}
-                </p>
-                <Button
-                  type="button"
-                  loading={isManualAddLocked}
-                  disabled={isManualAddLocked}
-                  onClick={handleManualAdd}
-                >
-                  Adicionar ao carrinho
-                </Button>
-              </div>
-            ) : null}
-            {manualAddMessage ? (
-              <p className={styles.manualAddSuccess} role="status" aria-live="polite">
-                {manualAddMessage}
-              </p>
-            ) : null}
-          </section>
-
           <div className={styles.content}>
             <CartTable
               items={items}
@@ -599,11 +443,6 @@ export function CaixaPage() {
               discountAmount={discountAmount}
               total={total}
               totalItems={totalItems}
-              onEditDiscount={() => {
-                if (items.length > 0) {
-                  setIsDiscountOpen(true)
-                }
-              }}
             />
           </div>
         </>
@@ -618,6 +457,14 @@ export function CaixaPage() {
       )}
 
       {isMarketOpen && productLookup.isPending ? <p className={styles.inlineStatus}>Buscando produto...</p> : null}
+
+      {isManualProductOpen ? (
+        <ManualProductModal
+          cartItems={items}
+          onAdd={handleManualAdd}
+          onClose={() => setIsManualProductOpen(false)}
+        />
+      ) : null}
 
       <CheckoutModal
         isOpen={isCheckoutOpen}

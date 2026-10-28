@@ -19,26 +19,53 @@ type CartState = {
   discountResetCount: number
 }
 
-function toCartItem(product: Product): CartItem {
+function toCartItem(product: Product, quantity: number): CartItem {
   return {
     productId: product.id,
     name: product.name,
     price: product.price,
     catalogPrice: product.price,
     barcode: product.barcode,
-    quantity: 1,
+    quantity,
   }
 }
 
-export function addProductToCart(currentItems: CartItem[], product: Product): CartItem[] {
+export function getProductAdditionError(currentItems: CartItem[], product: Product, quantity: number) {
+  if (product.active === false) {
+    return 'Produto inativo nao pode ser adicionado.'
+  }
+
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return 'Informe uma quantidade inteira maior que zero.'
+  }
+
+  if (product.stock !== undefined) {
+    const currentQuantity = currentItems.find((item) => item.productId === product.id)?.quantity ?? 0
+    const availableStock = product.stock - currentQuantity
+
+    if (availableStock < quantity) {
+      return availableStock > 0
+        ? `Estoque insuficiente. Disponivel para adicionar: ${availableStock}.`
+        : 'Produto sem estoque disponivel.'
+    }
+  }
+
+  return null
+}
+
+export function addProductToCart(currentItems: CartItem[], product: Product, quantity = 1): CartItem[] {
+  if (getProductAdditionError(currentItems, product, quantity)) {
+    return currentItems
+  }
+
   const existingItem = currentItems.find((item) => item.productId === product.id)
 
   if (!existingItem) {
-    return [...currentItems, toCartItem(product)]
+    return [...currentItems, toCartItem(product, quantity)]
   }
 
   return currentItems.map((item) =>
-    item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item,
+    item.productId === product.id ? { ...item, quantity: item.quantity + quantity } : item,
   )
 }
 
@@ -75,8 +102,8 @@ export function useCart() {
   const [state, setState] = useState<CartState>({ items: [], discountCents: 0, discountResetCount: 0 })
   const { items, discountCents, discountResetCount } = state
 
-  const addProduct = useCallback((product: Product) => {
-    setState((current) => mapItems(current, (currentItems) => addProductToCart(currentItems, product)))
+  const addProduct = useCallback((product: Product, quantity = 1) => {
+    setState((current) => mapItems(current, (currentItems) => addProductToCart(currentItems, product, quantity)))
   }, [])
 
   const removeItem = useCallback((productId: number) => {
