@@ -1,6 +1,5 @@
-import { Clock3, Menu, Radio } from 'lucide-react'
+import { Clock3, Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Badge } from '../../components/Badge/Badge'
 import { Button } from '../../components/Button/Button'
 import { CloseMarketModal } from '../../../turn/components/CloseMarketModal'
 import { MarketStatus } from '../../../turn/components/MarketStatus'
@@ -82,15 +81,7 @@ export function Topbar({ isSidebarOpen, onSidebarToggle }: TopbarProps) {
             <Clock3 size={16} aria-hidden="true" />
             <div>
               <span className={styles.statusLabel}>Horario</span>
-              <strong>{currentTime.toLocaleTimeString('pt-BR')}</strong>
-            </div>
-          </div>
-
-          <div className={styles.statusCard} aria-label="Status do scanner">
-            <Radio size={16} aria-hidden="true" className={styles.statusSuccessIcon} />
-            <div>
-              <span className={styles.statusLabel}>Scanner</span>
-              <Badge variant="success">Scanner Conectado</Badge>
+              <strong>{currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
             </div>
           </div>
 

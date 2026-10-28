@@ -216,11 +216,13 @@ describe('CloseMarketModal flow', () => {
     expect(buttonByText('Fechar Mercado').disabled).toBe(false)
   })
 
-  it('valida a observacao e impede envio invalido', async () => {
+  it('fecha o turno sem observacao', async () => {
     await click('Fechar Mercado')
 
-    expect(document.body.textContent).toContain('Informe uma observacao de fechamento.')
-    expect(closeTurnMock).not.toHaveBeenCalled()
+    await settle()
+
+    expect(closeTurnMock).toHaveBeenCalledWith('turn-1', { closingNote: '' })
+    expect(toastSuccessMock).toHaveBeenCalledWith('Mercado fechado com sucesso.')
   })
 
   it('confirma, chama POST /close, evita duplo envio e passa para Mercado Fechado', async () => {

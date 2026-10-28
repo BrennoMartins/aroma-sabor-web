@@ -32,6 +32,7 @@ const product: ProductRecord = {
   categoryId: 7,
   category: 'Mercearia',
   price: 18.5,
+  costPrice: null,
   stockQuantity: 12,
   active: true,
 }

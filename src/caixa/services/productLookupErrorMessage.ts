@@ -16,12 +16,16 @@ export function getProductLookupErrorMessage(error: unknown) {
 
   const status = error.response?.status
 
+  if (status === 404) {
+    return 'Produto nao encontrado.'
+  }
+
   if (status && status >= 500) {
     return 'Servico indisponivel no momento. Tente novamente.'
   }
 
   if (status && status >= 400) {
-    return 'Produto nao encontrado.'
+    return 'Nao foi possivel consultar o produto. Verifique o codigo e tente novamente.'
   }
 
   return 'Nao foi possivel consultar o produto.'

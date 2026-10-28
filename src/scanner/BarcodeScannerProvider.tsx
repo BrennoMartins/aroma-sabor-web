@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react'
+import { useCallback, useEffect, useRef, type PropsWithChildren } from 'react'
 import { ScannerContext } from './ScannerContext'
 import type { BarcodeScanListener } from './scanner.types'
 import {
@@ -7,28 +7,8 @@ import {
 } from './scannerDetector'
 
 export function BarcodeScannerProvider({ children }: PropsWithChildren) {
-  const [lastBarcode, setLastBarcode] = useState<string | null>(null)
-  const [isScanning, setIsScanning] = useState(false)
   const detectorRef = useRef(createBarcodeScannerTracker(DEFAULT_BARCODE_SCANNER_CONFIG))
   const listenersRef = useRef(new Set<BarcodeScanListener>())
-  const scanStatusTimeoutRef = useRef<number | null>(null)
-
-  const updateScanStatus = useCallback((nextValue: boolean) => {
-    setIsScanning(nextValue)
-
-    if (!nextValue) {
-      return
-    }
-
-    if (scanStatusTimeoutRef.current !== null) {
-      window.clearTimeout(scanStatusTimeoutRef.current)
-    }
-
-    scanStatusTimeoutRef.current = window.setTimeout(() => {
-      setIsScanning(false)
-      scanStatusTimeoutRef.current = null
-    }, 500)
-  }, [])
 
   const onScan = useCallback((listener: BarcodeScanListener) => {
     if (listenersRef.current.has(listener)) {
@@ -61,8 +41,6 @@ export function BarcodeScannerProvider({ children }: PropsWithChildren) {
         return
       }
 
-      setLastBarcode(barcode)
-      updateScanStatus(true)
       listeners.forEach((listener) => {
         listener(barcode)
       })
@@ -74,15 +52,11 @@ export function BarcodeScannerProvider({ children }: PropsWithChildren) {
       window.removeEventListener('keydown', handleKeyDown)
       listeners.clear()
       detector.reset()
-
-      if (scanStatusTimeoutRef.current !== null) {
-        window.clearTimeout(scanStatusTimeoutRef.current)
-      }
     }
-  }, [updateScanStatus])
+  }, [])
 
   return (
-    <ScannerContext.Provider value={{ lastBarcode, onScan, isScanning }}>
+    <ScannerContext.Provider value={{ onScan }}>
       {children}
     </ScannerContext.Provider>
   )

@@ -2,32 +2,6 @@
   position: relative;
 }
 
-.scannerPanel {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 20px;
-  padding: 16px 18px;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--color-success) 28%, transparent);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--color-success) 14%, transparent),
-    color-mix(in srgb, var(--color-surface) 95%, transparent)
-  );
-}
-
-.scannerRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  color: var(--color-text-primary);
-}
-
-.scannerLabel {
-  color: var(--color-text-secondary);
-}
-
 .scannerAnchor {
   position: absolute;
   inset: 0 auto auto 0;

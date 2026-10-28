@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { Button } from '../../shared/components/Button/Button'
 import { CartTable } from '../components/CartTable'
 import { CheckoutModal } from '../components/CheckoutModal'
-import { ScannerStatus } from '../components/ScannerStatus'
+import { ScannerAudioFeedback } from '../components/ScannerAudioFeedback'
 import { TotalPanel } from '../components/TotalPanel'
 import { useCart } from '../hooks/useCart'
 import { getCheckoutErrorMessage } from '../services/checkoutErrorMessage'
@@ -26,6 +27,8 @@ import {
   DASHBOARD_LOW_STOCK_QUERY_KEY,
   DASHBOARD_TOP_PRODUCTS_QUERY_KEY,
 } from '../../dashboard/hooks/useDashboardProducts'
+import { ProductForm } from '../../product/components/ProductForm'
+import { createProduct, type CreateProductRequest } from '../../product/services/productApi'
 import styles from './CaixaPage.module.css'
 
 function isTypingTarget(target: EventTarget | null) {
@@ -44,7 +47,7 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 export function CaixaPage() {
-  const { lastBarcode, onScan, isScanning } = useBarcodeScanner()
+  const { onScan } = useBarcodeScanner()
   const { currentTurn, isOpen, isLoading: isTurnLoading, openMarket, isOpening } = useMarketSession()
   const queryClient = useQueryClient()
   const [scanSignal, setScanSignal] = useState(0)
@@ -52,6 +55,8 @@ export function CaixaPage() {
   const [errorSignal, setErrorSignal] = useState(0)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
+  const [missingProductBarcode, setMissingProductBarcode] = useState<string | null>(null)
+  const [isProductFormOpen, setIsProductFormOpen] = useState(false)
   const [isSaleSuccessVisible, setIsSaleSuccessVisible] = useState(false)
   const [isOpenMarketModalVisible, setIsOpenMarketModalVisible] = useState(false)
   const [openMarketError, setOpenMarketError] = useState<string | null>(null)
@@ -68,7 +73,7 @@ export function CaixaPage() {
     removeItem,
     clearCart,
   } = useCart()
-  const isAnyModalOpen = isCheckoutOpen || isCancelDialogOpen
+  const isAnyModalOpen = isCheckoutOpen || isCancelDialogOpen || missingProductBarcode !== null
   const isMarketOpen = isOpen
 
   const focusScannerAnchor = useCallback(() => {
@@ -83,16 +88,47 @@ export function CaixaPage() {
       addProduct(product)
       toast.info(`${product.name} adicionado ao carrinho.`)
     },
-    onError: (error) => {
+    onError: (error, barcode) => {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        setMissingProductBarcode(barcode)
+        setErrorSignal((currentValue) => currentValue + 1)
+        return
+      }
+
       toast.error(getProductLookupErrorMessage(error))
       setErrorSignal((currentValue) => currentValue + 1)
     },
   })
 
+  const createProductMutation = useMutation({
+    mutationFn: createProduct,
+    onSuccess: async (createdProduct) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
+      ])
+      toast.success(`${createdProduct.name} cadastrado com sucesso. Bipe novamente para adiciona-lo a venda.`)
+      setIsProductFormOpen(false)
+      setMissingProductBarcode(null)
+    },
+    onError: () => {
+      toast.error('Nao foi possivel salvar o produto.')
+    },
+  })
+
+  const closeProductRegistration = useCallback(() => {
+    if (createProductMutation.isPending) {
+      return
+    }
+
+    setIsProductFormOpen(false)
+    setMissingProductBarcode(null)
+  }, [createProductMutation.isPending])
+
   const handleScan = useEffectEvent((barcode: string) => {
     setScanSignal((currentValue) => currentValue + 1)
 
-    if (isAnyModalOpen || !isMarketOpen) {
+    if (isAnyModalOpen || !isMarketOpen || productLookup.isPending) {
       return
     }
 
@@ -264,20 +300,7 @@ export function CaixaPage() {
 
       <h2 className="page-card__title">Caixa PDV</h2>
 
-      <div className={styles.scannerPanel} aria-live="polite">
-        <div className={styles.scannerRow}>
-          <span className={styles.scannerLabel}>Scanner:</span>
-          <strong>{isScanning ? '🟢 Código recebido' : '🟢 Aguardando leitura'}</strong>
-        </div>
-
-        <div className={styles.scannerRow}>
-          <span className={styles.scannerLabel}>Último código:</span>
-          <strong>{lastBarcode ?? 'Nenhum'}</strong>
-        </div>
-      </div>
-
-      <ScannerStatus
-        lastBarcode={lastBarcode}
+      <ScannerAudioFeedback
         scanSignal={scanSignal}
         successSignal={successSignal}
         errorSignal={errorSignal}
@@ -341,6 +364,25 @@ export function CaixaPage() {
         confirmVariant="danger"
         onConfirm={handleClearCart}
         onCancel={() => setIsCancelDialogOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={missingProductBarcode !== null && !isProductFormOpen}
+        title="Produto nao encontrado"
+        description="Produto nao encontrado. Deseja cadastra-lo?"
+        confirmLabel="Cadastrar produto"
+        cancelLabel="Cancelar"
+        confirmVariant="success"
+        onConfirm={() => setIsProductFormOpen(true)}
+        onCancel={closeProductRegistration}
+      />
+
+      <ProductForm
+        open={isProductFormOpen}
+        barcode={missingProductBarcode}
+        isSaving={createProductMutation.isPending}
+        onSubmit={(payload: CreateProductRequest) => createProductMutation.mutate(payload)}
+        onClose={closeProductRegistration}
       />
 
       <OpenMarketModal

@@ -7,6 +7,7 @@ export type ProductRecord = {
   categoryId: number | null
   category: string | null
   price: number
+  costPrice: number | null
   stockQuantity: number
   active: boolean
 }
@@ -16,6 +17,7 @@ export type CreateProductRequest = {
   name: string
   categoryId: number
   price: number
+  costPrice?: number | null
   stock: number
 }
 
@@ -37,6 +39,7 @@ type ProductResponse = {
   barcode: string
   category: { id: number; name: string } | null
   price: number
+  costPrice: number | null
   stock: number
   active: boolean
 }
@@ -49,6 +52,7 @@ function mapProductResponse(product: ProductResponse): ProductRecord {
     categoryId: product.category?.id ?? null,
     category: product.category?.name ?? null,
     price: product.price,
+    costPrice: product.costPrice ?? null,
     stockQuantity: product.stock,
     active: product.active,
   }

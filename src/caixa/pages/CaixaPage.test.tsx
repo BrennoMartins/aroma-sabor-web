@@ -31,13 +31,13 @@ const loadingShowMock = vi.fn()
 const loadingHideMock = vi.fn()
 const useCartMock = vi.fn()
 const useMarketSessionMock = vi.fn()
+const createProductMock = vi.fn()
+const getCategoriesMock = vi.fn()
 
 let scannerListener: ((barcode: string) => void) | null = null
 
 vi.mock('../../scanner/useBarcodeScanner', () => ({
   useBarcodeScanner: () => ({
-    lastBarcode: null,
-    isScanning: false,
     onScan: (listener: (barcode: string) => void) => {
       scannerListener = listener
       return () => {
@@ -68,6 +68,15 @@ vi.mock('../services/saleApi', async (importOriginal) => {
 
 vi.mock('../../shared/api/products', () => ({
   getByBarcode: (...args: unknown[]) => getByBarcodeMock(...args),
+  InvalidProductResponseError: class InvalidProductResponseError extends Error {},
+}))
+
+vi.mock('../../product/services/productApi', () => ({
+  createProduct: (...args: unknown[]) => createProductMock(...args),
+}))
+
+vi.mock('../../category/services/categoryApi', () => ({
+  getCategories: (...args: unknown[]) => getCategoriesMock(...args),
 }))
 
 vi.mock('../../shared/components/Toast/toast-store', () => ({
@@ -153,9 +162,28 @@ function clickByText(text: string) {
   return button
 }
 
+function setFieldValue(selector: string, value: string) {
+  const field = document.querySelector<HTMLInputElement | HTMLSelectElement>(selector)
+
+  if (!field) {
+    throw new Error(`Field not found: ${selector}`)
+  }
+
+  const prototype = field instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype
+  const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set
+  valueSetter?.call(field, value)
+  field.dispatchEvent(new Event(field instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }))
+}
+
 async function flush() {
   await act(async () => {
     await Promise.resolve()
+  })
+}
+
+async function waitForAnimationFrame() {
+  await act(async () => {
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
   })
 }
 
@@ -185,6 +213,9 @@ describe('CaixaPage checkout flow', () => {
     loadingHideMock.mockReset()
     useCartMock.mockReset()
     useMarketSessionMock.mockReset()
+    createProductMock.mockReset()
+    getCategoriesMock.mockReset()
+    getCategoriesMock.mockResolvedValue([{ id: 7, name: 'Mercearia', createdAt: '2026-10-25T16:10:22.410136' }])
     scannerListener = null
   })
 
@@ -218,6 +249,16 @@ describe('CaixaPage checkout flow', () => {
     expect(document.body.textContent).toContain('Mercado Fechado')
     expect(document.body.textContent).toContain('Abra o mercado para iniciar as vendas.')
     expect(document.body.textContent).toContain('Abrir Mercado')
+  })
+
+  it('nao exibe indicadores visuais de status do scanner', async () => {
+    await renderWithCart([], false)
+
+    expect(document.body.textContent).not.toContain('Scanner conectado')
+    expect(document.body.textContent).not.toContain('Scanner pronto para venda')
+    expect(document.body.textContent).not.toContain('Último código')
+    expect(document.body.textContent).not.toContain('Aguardando leitura')
+    expect(document.body.textContent).not.toContain('Código recebido')
   })
 
   it('bloqueia checkout quando o mercado estiver fechado', async () => {
@@ -409,5 +450,229 @@ describe('CaixaPage checkout flow', () => {
     expect(getByBarcodeMock).toHaveBeenCalled()
     expect(getByBarcodeMock.mock.calls[0]?.[0]).toBe('123')
     expect(cartState.addProduct).toHaveBeenCalledWith(product)
+  })
+
+  it('informa produto inexistente e oferece cadastro sem alterar itens da venda', async () => {
+    getByBarcodeMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 404 },
+    })
+    const cartState = await renderWithCart([
+      { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 2 },
+      { productId: 2, name: 'Pao', price: 4.5, barcode: '456', quantity: 3 },
+    ])
+
+    await act(async () => {
+      scannerListener?.('789')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(document.body.textContent).toContain('Produto nao encontrado')
+    expect(document.body.textContent).toContain('Deseja cadastra-lo?')
+    expect(document.body.textContent).toContain('Cadastrar produto')
+    expect(document.body.textContent).toContain('Cafe')
+    expect(document.body.textContent).toContain('Pao')
+    expect(document.body.textContent).toContain('33,50')
+    expect(cartState.clearCart).not.toHaveBeenCalled()
+    expect(cartState.addProduct).not.toHaveBeenCalled()
+  })
+
+  it('abre o formulario existente sobre o caixa e preserva o codigo e os itens', async () => {
+    getByBarcodeMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 404 },
+    })
+    const cartState = await renderWithCart([
+      { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 2 },
+      { productId: 2, name: 'Pao', price: 4.5, barcode: '456', quantity: 3 },
+    ])
+
+    await act(async () => {
+      scannerListener?.('789')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      clickByText('Cadastrar produto')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(document.querySelector('#smart-product-form')).not.toBeNull()
+    expect(document.querySelector<HTMLInputElement>('[name="barcode"]')?.value).toBe('789')
+    expect(document.body.textContent).toContain('Caixa PDV')
+    expect(document.body.textContent).toContain('Cafe')
+    expect(document.body.textContent).toContain('Pao')
+    expect(document.body.textContent).toContain('33,50')
+    expect(cartState.items).toHaveLength(2)
+    expect(cartState.clearCart).not.toHaveBeenCalled()
+  })
+
+  it('cancela o cadastro sem limpar o carrinho nem abandonar o caixa', async () => {
+    getByBarcodeMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 404 },
+    })
+    const cartState = await renderWithCart([
+      { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 2 },
+      { productId: 2, name: 'Pao', price: 4.5, barcode: '456', quantity: 3 },
+    ])
+
+    await act(async () => {
+      scannerListener?.('789')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      clickByText('Cadastrar produto')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    act(() => {
+      clickByText('Cancelar')
+    })
+
+    expect(document.querySelector('#smart-product-form')).toBeNull()
+    expect(document.body.textContent).toContain('Caixa PDV')
+    expect(document.body.textContent).toContain('Cafe')
+    expect(document.body.textContent).toContain('Pao')
+    expect(document.body.textContent).toContain('33,50')
+    expect(cartState.items).toHaveLength(2)
+    expect(cartState.clearCart).not.toHaveBeenCalled()
+  })
+
+  it('cadastra, atualiza consultas e permite adicionar com novo escaneamento', async () => {
+    const product: Product = {
+      id: 9,
+      name: 'Produto novo',
+      price: 5,
+      barcode: '789',
+    }
+    getByBarcodeMock
+      .mockRejectedValueOnce({ isAxiosError: true, response: { status: 404 } })
+      .mockResolvedValueOnce(product)
+    createProductMock.mockResolvedValueOnce({
+      id: 9,
+      name: product.name,
+      barcode: product.barcode,
+      categoryId: 7,
+      category: 'Mercearia',
+      price: product.price,
+      stockQuantity: 4,
+      active: true,
+    })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    const cartState = await renderWithCart([
+      { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 2 },
+      { productId: 2, name: 'Pao', price: 4.5, barcode: '456', quantity: 3 },
+    ])
+
+    await act(async () => {
+      scannerListener?.('789')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      clickByText('Cadastrar produto')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    setFieldValue('[name="name"]', 'Produto novo')
+    setFieldValue('[name="categoryId"]', '7')
+    setFieldValue('[name="price"]', '5')
+    setFieldValue('[name="initialStock"]', '0')
+    const form = document.querySelector<HTMLFormElement>('#smart-product-form')
+    if (!form) {
+      throw new Error('Product form not found')
+    }
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(createProductMock.mock.calls[0]?.[0]).toEqual({
+      barcode: '789',
+      name: 'Produto novo',
+      categoryId: 7,
+      price: 5,
+      stock: 0,
+    })
+    expect(document.querySelector('#smart-product-form')).toBeNull()
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'Produto novo cadastrado com sucesso. Bipe novamente para adiciona-lo a venda.',
+    )
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: PRODUCTS_QUERY_KEY })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
+    expect(cartState.items).toHaveLength(2)
+    expect(cartState.clearCart).not.toHaveBeenCalled()
+    expect(cartState.addProduct).not.toHaveBeenCalled()
+    await waitForAnimationFrame()
+    expect(document.activeElement).toBe(document.querySelector('[aria-hidden="true"][tabindex="-1"]'))
+
+    await act(async () => {
+      scannerListener?.('789')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(getByBarcodeMock).toHaveBeenCalledTimes(2)
+    expect(cartState.addProduct).toHaveBeenCalledTimes(1)
+    expect(cartState.addProduct).toHaveBeenCalledWith(product)
+  })
+
+  it('mantem dados preenchidos e o carrinho quando o cadastro falha', async () => {
+    getByBarcodeMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 404 },
+    })
+    createProductMock.mockRejectedValueOnce(new Error('request failed'))
+    const cartState = await renderWithCart([
+      { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 2 },
+    ])
+
+    await act(async () => {
+      scannerListener?.('789')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      clickByText('Cadastrar produto')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+    setFieldValue('[name="name"]', 'Produto nao salvo')
+    setFieldValue('[name="categoryId"]', '7')
+    setFieldValue('[name="price"]', '5')
+    setFieldValue('[name="initialStock"]', '0')
+    const form = document.querySelector<HTMLFormElement>('#smart-product-form')
+    if (!form) {
+      throw new Error('Product form not found')
+    }
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(toastErrorMock).toHaveBeenCalledWith('Nao foi possivel salvar o produto.')
+    expect(document.querySelector('#smart-product-form')).not.toBeNull()
+    expect(document.querySelector<HTMLInputElement>('[name="name"]')?.value).toBe('Produto nao salvo')
+    expect(document.body.textContent).toContain('Cafe')
+    expect(cartState.items).toHaveLength(1)
+    expect(cartState.clearCart).not.toHaveBeenCalled()
+    expect(cartState.addProduct).not.toHaveBeenCalled()
+  })
+
+  it('trata falhas tecnicas da busca sem oferecer cadastro', async () => {
+    getByBarcodeMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 500 },
+    })
+    const cartState = await renderWithCart([
+      { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 1 },
+    ])
+
+    await act(async () => {
+      scannerListener?.('789')
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(document.body.textContent).not.toContain('Deseja cadastra-lo?')
+    expect(document.querySelector('#smart-product-form')).toBeNull()
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Servico indisponivel no momento. Tente novamente.',
+    )
+    expect(cartState.clearCart).not.toHaveBeenCalled()
+    expect(cartState.addProduct).not.toHaveBeenCalled()
   })
 })

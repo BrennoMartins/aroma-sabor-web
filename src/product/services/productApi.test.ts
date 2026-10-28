@@ -34,6 +34,7 @@ describe('getProducts', () => {
           barcode: '7891000000001',
           category: { id: 23, name: 'Mercearia' },
           price: 18.5,
+          costPrice: 7.25,
           stock: 12,
           active: true,
         },
@@ -48,6 +49,7 @@ describe('getProducts', () => {
         categoryId: 23,
         category: 'Mercearia',
         price: 18.5,
+        costPrice: 7.25,
         stockQuantity: 12,
         active: true,
       },
@@ -119,6 +121,7 @@ describe('updateProduct', () => {
       name: 'Café atualizado',
       categoryId: 23,
       price: 20.75,
+      costPrice: 15.5,
     }
     vi.mocked(api.put).mockResolvedValueOnce({
       data: {
@@ -127,6 +130,7 @@ describe('updateProduct', () => {
         barcode: '7891000000002',
         category: { id: 23, name: 'Bebidas' },
         price: 20.75,
+        costPrice: 15.5,
         stock: 9,
         active: true,
       },
@@ -139,6 +143,7 @@ describe('updateProduct', () => {
       categoryId: 23,
       category: 'Bebidas',
       price: 20.75,
+      costPrice: 15.5,
       stockQuantity: 9,
       active: true,
     })

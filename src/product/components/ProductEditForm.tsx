@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useRef } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { useCategories } from '../../category/hooks/useCategories'
 import { Button } from '../../shared/components/Button/Button'
@@ -33,6 +33,18 @@ const productEditSchema = z.object({
 
       return Number.isFinite(normalized) && normalized >= 0
     }, 'Informe um preço válido maior ou igual a zero.'),
+  costPrice: z
+    .string()
+    .trim()
+    .refine((value) => {
+      if (!value) {
+        return true
+      }
+
+      const normalized = Number(value.replace(',', '.'))
+
+      return /^\d{1,8}(?:[,.]\d{1,2})?$/.test(value) && Number.isFinite(normalized) && normalized <= 99999999.99
+    }, 'Informe um preço de custo válido, com até 2 casas decimais.'),
 })
 
 type ProductEditValues = z.infer<typeof productEditSchema>
@@ -43,6 +55,7 @@ function getProductEditValues(product: ProductRecord): ProductEditValues {
     name: product.name,
     categoryId: product.categoryId?.toString() ?? '',
     price: product.price.toFixed(2).replace('.', ','),
+    costPrice: product.costPrice?.toFixed(2).replace('.', ',') ?? '',
   }
 }
 
@@ -58,6 +71,7 @@ export function ProductEditForm({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
     reset,
     setFocus,
@@ -66,6 +80,7 @@ export function ProductEditForm({
     resolver: zodResolver(productEditSchema),
     defaultValues: getProductEditValues(product),
   })
+  const categoryId = useWatch({ control, name: 'categoryId' })
 
   useEffect(() => {
     reset(getProductEditValues(product))
@@ -100,6 +115,9 @@ export function ProductEditForm({
       name: values.name.trim(),
       categoryId,
       price: Number(values.price.replace(',', '.')),
+      ...(values.costPrice.trim()
+        ? { costPrice: Number(values.costPrice.replace(',', '.')) }
+        : {}),
     })
   }
 
@@ -159,6 +177,7 @@ export function ProductEditForm({
             id="product-edit-category"
             className={styles.select}
             disabled={fieldsDisabled}
+            value={categoryId}
             aria-invalid={Boolean(errors.categoryId)}
             aria-describedby={errors.categoryId ? 'product-edit-category-error' : undefined}
             {...register('categoryId')}
@@ -202,6 +221,15 @@ export function ProductEditForm({
           disabled={isSaving}
           {...register('price')}
           error={errors.price?.message}
+        />
+        <Input
+          label="Preço de custo"
+          inputMode="decimal"
+          placeholder="Ex.: 8,50 (opcional)"
+          maxLength={11}
+          disabled={isSaving}
+          {...register('costPrice')}
+          error={errors.costPrice?.message}
         />
         <Input label="Estoque atual" value={product.stockQuantity} readOnly />
         {errorMessage ? (
