@@ -6,7 +6,7 @@ type ApiErrorResponse = {
   errors?: unknown
 }
 
-type StockOperation = 'replenishment' | 'adjustment' | 'reactivation'
+type StockOperation = 'replenishment' | 'adjustment' | 'discard' | 'reactivation'
 
 export function getInventoryErrorMessage(error: unknown, operation: StockOperation) {
   if (error instanceof InvalidStockMovementPageError) {
@@ -24,6 +24,11 @@ export function getInventoryErrorMessage(error: unknown, operation: StockOperati
 
   if (status === 409 && operation === 'adjustment') {
     return 'A quantidade informada já corresponde ao saldo atual. Nenhum ajuste foi realizado.'
+  }
+  if (status === 409 && operation === 'discard') {
+    return typeof apiMessage === 'string' && apiMessage.trim()
+      ? apiMessage
+      : 'A quantidade a descartar não pode ser maior que o estoque disponível.'
   }
   if (status === 409 && operation === 'reactivation') {
     return 'Este produto já está ativo ou há um conflito no código de barras. Atualize a lista e tente novamente.'

@@ -78,7 +78,7 @@ function Harness() {
         type="button"
         onClick={async () => {
           try {
-            await session.closeMarket({ closingNote: 'fim' })
+            await session.closeMarket({})
             setActionMessage('closed')
           } catch (error) {
             setActionMessage(error instanceof Error ? error.message : 'error')
@@ -250,6 +250,7 @@ describe('useMarketSession', () => {
     expect(document.querySelector('[data-testid="status"]')?.textContent).toBe('closed')
     expect(document.querySelector('[data-testid="turn-id"]')?.textContent).toBe('none')
     expect(getCurrentTurnMock).toHaveBeenCalledTimes(2)
+    expect(closeTurnMock).toHaveBeenCalledWith('turn-1', {})
     expect(toastSuccessMock).toHaveBeenCalledWith('Mercado fechado com sucesso.')
   })
 

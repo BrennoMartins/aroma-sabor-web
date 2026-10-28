@@ -21,6 +21,9 @@ const sales: SaleRecord[] = [
     total: 29.98,
     status: 'COMPLETED',
     createdAt: '2026-10-25T10:30:00',
+    grossProfitKnownAmount: 8,
+    grossProfitComplete: true,
+    itemsWithoutHistoricalCost: 0,
     items: [
       { productId: 8, productName: 'Café', quantity: 2, unitPrice: 14.99, subtotal: 29.98 },
     ],
@@ -30,6 +33,9 @@ const sales: SaleRecord[] = [
     total: 6.5,
     status: 'COMPLETED',
     createdAt: '2026-10-20T09:15:00',
+    grossProfitKnownAmount: 1.5,
+    grossProfitComplete: true,
+    itemsWithoutHistoricalCost: 0,
     items: [
       { productId: 12, productName: 'Pão', quantity: 5, unitPrice: 1.3, subtotal: 6.5 },
     ],
@@ -100,7 +106,40 @@ describe('SalesPage', () => {
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(29.98),
     )
     expect(document.body.textContent).toContain('Concluída')
+    expect(document.body.textContent).toContain('Lucro bruto do período:')
+    expect(document.body.textContent).toContain(
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(9.5),
+    )
     expect(getSalesMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows known sale profit but marks it incomplete when historical costs are missing', async () => {
+    getSalesMock.mockResolvedValueOnce([{
+      ...sales[0],
+      grossProfitKnownAmount: 3.25,
+      grossProfitComplete: false,
+      itemsWithoutHistoricalCost: 1,
+    }])
+
+    await render()
+    await waitForText('Incompleto')
+
+    expect(document.body.textContent).toContain('1 sem custo')
+    expect(document.body.textContent).toContain('1 item(ns) sem custo histórico')
+  })
+
+  it('sums known gross profit in cents for the displayed period', async () => {
+    getSalesMock.mockResolvedValueOnce([
+      { ...sales[0], grossProfitKnownAmount: 0.1 },
+      { ...sales[1], grossProfitKnownAmount: 0.2 },
+    ])
+
+    await render()
+    await waitForText('#41')
+
+    expect(document.body.textContent).toContain(
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(0.3),
+    )
   })
 
   it('filtra por intervalo local, valida datas e limpa os filtros sem repetir a requisição', async () => {
@@ -184,6 +223,8 @@ describe('SalesPage', () => {
     expect(text).toContain('18,50')
     expect(text).toContain('3,75')
     expect(text).toContain('22,25')
+    expect(text).toContain('Lucro bruto')
+    expect(text).toContain('R$ 8,00')
     expect(getSaleByIdMock).toHaveBeenCalledWith('41')
     expect(getSalesMock).not.toHaveBeenCalled()
   })

@@ -15,8 +15,8 @@ export function CartTable({ items, onIncrement, onDecrement, onRemove }: CartTab
     return (
       <Card title="Carrinho" className={styles.card}>
         <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>Scanner pronto para venda</p>
-          <p className={styles.emptyDescription}>Passe o primeiro produto no Honeywell Orbit.</p>
+          <p className={styles.emptyTitle}>Carrinho vazio</p>
+          <p className={styles.emptyDescription}>Adicione produtos para iniciar a venda.</p>
         </div>
       </Card>
     )

@@ -8,6 +8,9 @@ const DashboardSummarySchema = z.object({
   revenue: z.number(),
   salesCount: z.number(),
   averageTicket: z.number(),
+  grossProfitKnownAmount: z.number().finite(),
+  grossProfitComplete: z.boolean(),
+  itemsWithoutHistoricalCost: z.number().int().nonnegative(),
   currentTurn: z.object({
     id: z.string(),
     openedAt: LocalDateTimeSchema,

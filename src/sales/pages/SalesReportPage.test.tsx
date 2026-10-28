@@ -21,6 +21,9 @@ const report: SalesReport = {
   totalRevenue: 1234.56,
   salesCount: 42,
   averageTicket: 17.77,
+  grossProfitKnownAmount: 432.1,
+  grossProfitComplete: true,
+  itemsWithoutHistoricalCost: 0,
   dailySales: [
     { date: '2026-10-01', revenue: 900.5, salesCount: 20 },
     { date: '2026-10-02', revenue: 0, salesCount: 0 },
@@ -162,6 +165,8 @@ describe('SalesReportPage', () => {
     expect(text).toContain(currency.format(1234.56))
     expect(text).toContain('42')
     expect(text).toContain(currency.format(17.77))
+    expect(text).toContain('Lucro bruto')
+    expect(text).toContain(currency.format(432.1))
     expect(text).not.toContain(currency.format(1234.56 / 42))
 
     const days = [...container.querySelectorAll('[aria-label="Série diária de vendas"] > li')]
@@ -182,6 +187,9 @@ describe('SalesReportPage', () => {
       totalRevenue: 0,
       salesCount: 0,
       averageTicket: 0,
+      grossProfitKnownAmount: 0,
+      grossProfitComplete: true,
+      itemsWithoutHistoricalCost: 0,
       dailySales: [
         { date: '2026-10-08', revenue: 0, salesCount: 0 },
         { date: '2026-10-09', revenue: 0, salesCount: 0 },

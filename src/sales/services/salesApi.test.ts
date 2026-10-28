@@ -13,6 +13,9 @@ const sale = {
   total: 29.98,
   status: 'COMPLETED',
   createdAt: '2026-10-25T10:30:00',
+  grossProfitKnownAmount: 8,
+  grossProfitComplete: true,
+  itemsWithoutHistoricalCost: 0,
   items: [
     {
       productId: 8,

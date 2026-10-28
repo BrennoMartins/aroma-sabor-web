@@ -19,7 +19,7 @@ type CloseMarketModalProps = {
 }
 
 const closeMarketSchema = z.object({
-  closingNote: z.string().trim().min(2, 'Informe uma observacao de fechamento.'),
+  closingNote: z.string().trim(),
 })
 
 type CloseMarketFormValues = z.infer<typeof closeMarketSchema>

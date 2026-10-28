@@ -114,6 +114,10 @@ describe('ProductForm', () => {
     await render()
     await waitForText('#categoryId option[value="23"]', 'Bebidas')
 
+    const stockField = document.querySelector<HTMLInputElement>('[name="initialStock"]')
+    expect(stockField?.value).toBe('')
+    expect(stockField?.placeholder).toBe('0')
+
     const options = Array.from(document.querySelectorAll<HTMLSelectElement>('#categoryId option'))
       .filter((option) => option.value)
       .map((option) => ({ id: option.value, name: option.textContent }))
@@ -132,6 +136,8 @@ describe('ProductForm', () => {
     setFieldValue('[name="name"]', 'Orbit')
     setFieldValue('[name="categoryId"]', '23')
     setFieldValue('[name="price"]', '20')
+    setFieldValue('[name="costPrice"]', '12,50')
+    setFieldValue('[name="initialStock"]', '0')
     await submit()
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -139,8 +145,91 @@ describe('ProductForm', () => {
       name: 'Orbit',
       categoryId: 23,
       price: 20,
+      costPrice: 12.5,
       stock: 0,
     })
+  })
+
+  it('accepts and submits a typed initial stock without a prefilled zero', async () => {
+    getCategoriesMock.mockResolvedValueOnce(categories)
+    await render()
+    await waitForText('#categoryId option[value="7"]', 'Mercearia')
+
+    const stockField = document.querySelector<HTMLInputElement>('[name="initialStock"]')
+    expect(stockField?.value).toBe('')
+
+    setFieldValue('[name="name"]', 'Orbit')
+    setFieldValue('[name="categoryId"]', '7')
+    setFieldValue('[name="price"]', '20')
+    setFieldValue('[name="initialStock"]', '25')
+    await submit()
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      barcode: '7908552008891',
+      name: 'Orbit',
+      categoryId: 7,
+      price: 20,
+      stock: 25,
+    })
+  })
+
+  it('requires an explicitly entered initial stock value', async () => {
+    getCategoriesMock.mockResolvedValueOnce(categories)
+    await render()
+    await waitForText('#categoryId option[value="7"]', 'Mercearia')
+
+    setFieldValue('[name="name"]', 'Orbit')
+    setFieldValue('[name="categoryId"]', '7')
+    setFieldValue('[name="price"]', '20')
+    await submit()
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Informe o estoque inicial.')
+  })
+
+  it('rejects negative initial stock values', async () => {
+    getCategoriesMock.mockResolvedValueOnce(categories)
+    await render()
+    await waitForText('#categoryId option[value="7"]', 'Mercearia')
+
+    setFieldValue('[name="name"]', 'Orbit')
+    setFieldValue('[name="categoryId"]', '7')
+    setFieldValue('[name="price"]', '20')
+    setFieldValue('[name="initialStock"]', '-1')
+    await submit()
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Informe um estoque inteiro maior ou igual a zero.')
+  })
+
+  it('rejects decimal initial stock values', async () => {
+    getCategoriesMock.mockResolvedValueOnce(categories)
+    await render()
+    await waitForText('#categoryId option[value="7"]', 'Mercearia')
+
+    setFieldValue('[name="name"]', 'Orbit')
+    setFieldValue('[name="categoryId"]', '7')
+    setFieldValue('[name="price"]', '20')
+    setFieldValue('[name="initialStock"]', '1.5')
+    await submit()
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Informe um estoque inteiro maior ou igual a zero.')
+  })
+
+  it('valida a precisão do preço de custo antes de enviar', async () => {
+    getCategoriesMock.mockResolvedValueOnce(categories)
+    await render()
+    await waitForText('#categoryId option[value="7"]', 'Mercearia')
+
+    setFieldValue('[name="name"]', 'Orbit')
+    setFieldValue('[name="categoryId"]', '7')
+    setFieldValue('[name="price"]', '20')
+    setFieldValue('[name="costPrice"]', '12,345')
+    await submit()
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Informe um preco de custo valido, com ate 2 casas decimais.')
   })
 
   it('bloqueia o envio sem uma categoria selecionada', async () => {

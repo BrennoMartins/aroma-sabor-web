@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { api } from '../../shared/api/axios'
 
 export type ProductRecord = {
@@ -7,6 +8,7 @@ export type ProductRecord = {
   categoryId: number | null
   category: string | null
   price: number
+  costPrice: number | null
   stockQuantity: number
   active: boolean
 }
@@ -16,6 +18,7 @@ export type CreateProductRequest = {
   name: string
   categoryId: number
   price: number
+  costPrice?: number | null
   stock: number
 }
 
@@ -31,12 +34,36 @@ export type StockAdjustmentRequest = {
   reason: string
 }
 
+export const STOCK_DISCARD_REASONS = ['DAMAGED', 'EXPIRED', 'UNFIT_FOR_SALE', 'OTHER'] as const
+export type StockDiscardReason = (typeof STOCK_DISCARD_REASONS)[number]
+
+export type StockDiscardRequest = {
+  quantity: number
+  reason: StockDiscardReason
+  observation?: string
+}
+
+const StockDiscardResponseSchema = z.object({
+  id: z.number().int().positive(),
+  productId: z.number().int().positive(),
+  productName: z.string(),
+  movementType: z.literal('DISCARD'),
+  quantity: z.number().int().negative(),
+  createdAt: z.string(),
+  reason: z.string().nullable(),
+  discardReason: z.enum(STOCK_DISCARD_REASONS),
+  referenceSaleId: z.number().nullable(),
+})
+
+export type StockDiscardResponse = z.infer<typeof StockDiscardResponseSchema>
+
 type ProductResponse = {
   id: number
   name: string
   barcode: string
   category: { id: number; name: string } | null
   price: number
+  costPrice: number | null
   stock: number
   active: boolean
 }
@@ -49,6 +76,7 @@ function mapProductResponse(product: ProductResponse): ProductRecord {
     categoryId: product.category?.id ?? null,
     category: product.category?.name ?? null,
     price: product.price,
+    costPrice: product.costPrice ?? null,
     stockQuantity: product.stock,
     active: product.active,
   }
@@ -110,4 +138,10 @@ export async function adjustProductStock(id: number, payload: StockAdjustmentReq
   const response = await api.post<ProductResponse>(`/products/${id}/stock-adjustments`, payload)
 
   return mapProductResponse(response.data)
+}
+
+export async function discardProductStock(id: number, payload: StockDiscardRequest) {
+  const response = await api.post<unknown>(`/products/${id}/discards`, payload)
+
+  return StockDiscardResponseSchema.parse(response.data)
 }

@@ -148,7 +148,20 @@ export function DashboardPage() {
               icon={TrendingUp}
               tone="warning"
             />
+            <DashboardMetric
+              title="Lucro bruto do dia"
+              value={summary.grossProfitComplete
+                ? currencyFormatter.format(summary.grossProfitKnownAmount)
+                : `Incompleto · conhecido ${currencyFormatter.format(summary.grossProfitKnownAmount)}`}
+              icon={TrendingUp}
+              tone={summary.grossProfitComplete ? 'success' : 'warning'}
+            />
           </section>
+          {!summary.grossProfitComplete ? (
+            <p className={styles.profitNotice} role="status">
+              Lucro bruto incompleto: {summary.itemsWithoutHistoricalCost} item(ns) sem custo histórico.
+            </p>
+          ) : null}
 
           <section className={styles.content}>
             <Card title="Estado do caixa" className={styles.panel}>

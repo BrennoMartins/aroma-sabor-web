@@ -14,6 +14,9 @@ const report = {
   totalRevenue: 61,
   salesCount: 3,
   averageTicket: 20.33,
+  grossProfitKnownAmount: 24,
+  grossProfitComplete: false,
+  itemsWithoutHistoricalCost: 1,
   dailySales: [
     { date: '2026-10-01', revenue: 40, salesCount: 2 },
     { date: '2026-10-02', revenue: 0, salesCount: 0 },

@@ -33,6 +33,18 @@ const productFormSchema = z.object({
 
       return Number.isFinite(normalized) && normalized > 0
     }, 'Informe um preco valido.'),
+  costPrice: z
+    .string()
+    .trim()
+    .refine((value) => {
+      if (!value) {
+        return true
+      }
+
+      const normalized = Number(value.replace(',', '.'))
+
+      return /^\d{1,8}(?:[,.]\d{1,2})?$/.test(value) && Number.isFinite(normalized) && normalized <= 99999999.99
+    }, 'Informe um preco de custo valido, com ate 2 casas decimais.'),
   initialStock: z
     .string()
     .trim()
@@ -62,7 +74,8 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
       name: '',
       categoryId: '',
       price: '',
-      initialStock: '0',
+      costPrice: '',
+      initialStock: '',
     },
   })
 
@@ -76,7 +89,8 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
       name: '',
       categoryId: '',
       price: '',
-      initialStock: '0',
+      costPrice: '',
+      initialStock: '',
     })
 
     window.requestAnimationFrame(() => {
@@ -93,11 +107,14 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
       return
     }
 
+    const costPrice = values.costPrice.trim()
+
     onSubmit({
       barcode: values.barcode,
       name: values.name.trim(),
       categoryId,
       price: Number(values.price.replace(',', '.')),
+      ...(costPrice ? { costPrice: Number(costPrice.replace(',', '.')) } : {}),
       stock: Number(values.initialStock),
     })
   }
@@ -108,10 +125,10 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
     <Modal
       open={open}
       title="Cadastro inteligente de produto"
-      onClose={onClose}
+      onClose={isSaving ? () => undefined : onClose}
       actions={
         <>
-          <Button variant="secondary" type="button" onClick={onClose}>
+          <Button variant="secondary" type="button" disabled={isSaving} onClick={onClose}>
             Cancelar
           </Button>
           <Button
@@ -179,6 +196,14 @@ export function ProductForm({ open, barcode, isSaving, onSubmit, onClose }: Prod
           ) : null}
         </div>
         <Input label="Preco" inputMode="decimal" placeholder="Ex.: 12,90" {...register('price')} error={errors.price?.message} />
+        <Input
+          label="Preço de custo"
+          inputMode="decimal"
+          placeholder="Ex.: 8,50 (opcional)"
+          maxLength={11}
+          {...register('costPrice')}
+          error={errors.costPrice?.message}
+        />
         <Input
           label="Estoque inicial"
           inputMode="numeric"

@@ -2,6 +2,7 @@ import {
   Archive,
   ChartColumnIncreasing,
   Cog,
+  CircleAlert,
   LayoutDashboard,
   LayoutGrid,
   Package,
@@ -18,6 +19,7 @@ const navigationItems = [
   { to: '/products', label: 'Produtos', icon: Package },
   { to: '/categories', label: 'Categorias', icon: LayoutGrid },
   { to: '/inventory', label: 'Estoque', icon: Archive },
+  { to: '/losses', label: 'Perdas e descartes', icon: CircleAlert },
   { to: '/sales', label: 'Vendas', icon: Receipt },
   { to: '/reports/sales', label: 'Relatórios', icon: ChartColumnIncreasing },
 ] as const

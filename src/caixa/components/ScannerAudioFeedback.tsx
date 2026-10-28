@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import styles from './ScannerStatus.module.css'
 
 type AudioContextWithWebkit = typeof window & {
   webkitAudioContext?: typeof AudioContext
 }
 
-type ScannerStatusProps = {
-  lastBarcode: string | null
+type ScannerAudioFeedbackProps = {
   scanSignal: number
   successSignal: number
   errorSignal: number
 }
 
-const FEEDBACK_DURATION_MS = 300
 const SUCCESS_BEEP_DURATION_SECONDS = 0.12
 const ERROR_BEEP_DURATION_SECONDS = 0.18
 const SUCCESS_BEEP_FREQUENCY_HZ = 1046.5
@@ -22,12 +19,12 @@ async function playTone(
   audioContextRef: React.MutableRefObject<AudioContext | null>,
   frequency: number,
   duration: number,
-) {
+): Promise<AudioContext | null> {
   const audioWindow = window as AudioContextWithWebkit
   const AudioContextConstructor = window.AudioContext ?? audioWindow.webkitAudioContext
 
   if (!AudioContextConstructor) {
-    return
+    return null
   }
 
   if (!audioContextRef.current) {
@@ -53,29 +50,20 @@ async function playTone(
   gainNode.connect(audioContext.destination)
   oscillator.start(audioContext.currentTime)
   oscillator.stop(audioContext.currentTime + duration)
+
+  return audioContext
 }
 
-export function ScannerStatus({ lastBarcode, scanSignal, successSignal, errorSignal }: ScannerStatusProps) {
-  const [flashVariant, setFlashVariant] = useState<'idle' | 'success' | 'error'>('idle')
-  const feedbackTimeoutRef = useRef<number | null>(null)
+export function ScannerAudioFeedback({
+  scanSignal,
+  successSignal,
+  errorSignal,
+}: ScannerAudioFeedbackProps) {
   const audioContextRef = useRef<AudioContext | null>(null)
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null)
   const previousScanSignalRef = useRef(0)
   const previousSuccessSignalRef = useRef(0)
   const previousErrorSignalRef = useRef(0)
-
-  const triggerSuccessFeedback = () => {
-    setFlashVariant('success')
-
-    if (feedbackTimeoutRef.current) {
-      window.clearTimeout(feedbackTimeoutRef.current)
-    }
-
-    feedbackTimeoutRef.current = window.setTimeout(() => {
-      setFlashVariant('idle')
-    }, FEEDBACK_DURATION_MS)
-
-    void playTone(audioContextRef, SUCCESS_BEEP_FREQUENCY_HZ, SUCCESS_BEEP_DURATION_SECONDS)
-  }
 
   useEffect(() => {
     if (scanSignal === 0 || scanSignal === previousScanSignalRef.current) {
@@ -83,7 +71,8 @@ export function ScannerStatus({ lastBarcode, scanSignal, successSignal, errorSig
     }
 
     previousScanSignalRef.current = scanSignal
-    triggerSuccessFeedback()
+    void playTone(audioContextRef, SUCCESS_BEEP_FREQUENCY_HZ, SUCCESS_BEEP_DURATION_SECONDS)
+      .then(setAudioContext)
   }, [scanSignal])
 
   useEffect(() => {
@@ -92,7 +81,8 @@ export function ScannerStatus({ lastBarcode, scanSignal, successSignal, errorSig
     }
 
     previousSuccessSignalRef.current = successSignal
-    triggerSuccessFeedback()
+    void playTone(audioContextRef, SUCCESS_BEEP_FREQUENCY_HZ, SUCCESS_BEEP_DURATION_SECONDS)
+      .then(setAudioContext)
   }, [successSignal])
 
   useEffect(() => {
@@ -101,51 +91,19 @@ export function ScannerStatus({ lastBarcode, scanSignal, successSignal, errorSig
     }
 
     previousErrorSignalRef.current = errorSignal
-    setFlashVariant('error')
-
-    if (feedbackTimeoutRef.current) {
-      window.clearTimeout(feedbackTimeoutRef.current)
-    }
-
-    feedbackTimeoutRef.current = window.setTimeout(() => {
-      setFlashVariant('idle')
-    }, FEEDBACK_DURATION_MS)
-
     void playTone(audioContextRef, ERROR_BEEP_FREQUENCY_HZ, ERROR_BEEP_DURATION_SECONDS)
+      .then(setAudioContext)
   }, [errorSignal])
 
   useEffect(() => {
-    const audioContext = audioContextRef.current
+    if (!audioContext) {
+      return
+    }
 
     return () => {
-      if (feedbackTimeoutRef.current) {
-        window.clearTimeout(feedbackTimeoutRef.current)
-      }
-
-      if (audioContext) {
-        void audioContext.close()
-      }
+      void audioContext.close()
     }
-  }, [])
+  }, [audioContext])
 
-  return (
-    <section
-      className={[
-        styles.root,
-        flashVariant === 'success' ? styles.success : '',
-        flashVariant === 'error' ? styles.error : '',
-      ].filter(Boolean).join(' ')}
-      aria-live="polite"
-    >
-      <div className={styles.row}>
-        <span className={styles.dot} />
-        <strong>Scanner conectado</strong>
-      </div>
-
-      <div className={styles.result}>
-        <span className={styles.label}>Ultimo codigo lido</span>
-        <strong className={styles.value}>{lastBarcode ?? 'Nenhuma leitura ainda.'}</strong>
-      </div>
-    </section>
-  )
+  return null
 }

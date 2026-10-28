@@ -20,10 +20,18 @@ describe('getProductLookupErrorMessage', () => {
     expect(getProductLookupErrorMessage(error)).toBe('Tempo esgotado na consulta do produto. Tente novamente.')
   })
 
-  it('mapeia erro 4xx para produto nao encontrado', () => {
+  it('mapeia 404 para produto nao encontrado', () => {
     const error = createAxiosLikeError({ response: { status: 404 } })
 
     expect(getProductLookupErrorMessage(error)).toBe('Produto nao encontrado.')
+  })
+
+  it('nao classifica outros erros 4xx como produto inexistente', () => {
+    const error = createAxiosLikeError({ response: { status: 400 } })
+
+    expect(getProductLookupErrorMessage(error)).toBe(
+      'Nao foi possivel consultar o produto. Verifique o codigo e tente novamente.',
+    )
   })
 
   it('mapeia erro 5xx para indisponibilidade', () => {

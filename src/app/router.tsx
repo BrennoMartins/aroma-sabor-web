@@ -3,6 +3,7 @@ import { CaixaPage } from '../caixa/pages/CaixaPage'
 import { CategoryPage } from '../category/pages/CategoryPage'
 import { DashboardPage } from '../dashboard/pages/DashboardPage'
 import { InventoryPage } from '../inventory/pages/InventoryPage'
+import { DiscardsPage } from '../inventory/pages/DiscardsPage'
 import { ProductPage } from '../product/pages/ProductPage'
 import { SalesPage } from '../sales/pages/SalesPage'
 import { SalesReportPage } from '../sales/pages/SalesReportPage'
@@ -33,6 +34,10 @@ export function AppRouter() {
         {
           path: 'inventory',
           element: <InventoryPage />,
+        },
+        {
+          path: 'losses',
+          element: <DiscardsPage />,
         },
         {
           path: 'sales',

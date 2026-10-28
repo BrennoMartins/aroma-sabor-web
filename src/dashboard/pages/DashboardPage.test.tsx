@@ -22,6 +22,9 @@ const openTurnSummary: DashboardSummary = {
   revenue: 58.5,
   salesCount: 2,
   averageTicket: 29.25,
+  grossProfitKnownAmount: 14.5,
+  grossProfitComplete: true,
+  itemsWithoutHistoricalCost: 0,
   currentTurn: {
     id: '7a25b021-7f7c-4c0c-a343-2d7c784d5339',
     openedAt: '2026-10-26T08:00:00',
@@ -106,8 +109,26 @@ describe('DashboardPage', () => {
     const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
     expect(document.body.textContent).toContain(currency.format(58.5))
     expect(document.body.textContent).toContain(currency.format(29.25))
+    expect(document.body.textContent).toContain('Lucro bruto do dia')
+    expect(document.body.textContent).toContain(currency.format(14.5))
     expect(document.body.textContent).toContain('2')
     expect(document.body.textContent).toContain('26/10/2026')
+  })
+
+  it('identifies daily gross profit as incomplete instead of presenting it as final', async () => {
+    getDashboardSummaryMock.mockResolvedValueOnce({
+      ...openTurnSummary,
+      grossProfitKnownAmount: 4.25,
+      grossProfitComplete: false,
+      itemsWithoutHistoricalCost: 2,
+    })
+
+    await render()
+    await waitForText('Lucro bruto do dia')
+
+    expect(document.body.textContent).toContain('Incompleto')
+    expect(document.body.textContent).toContain('conhecido')
+    expect(document.body.textContent).toContain('2 item(ns) sem custo histórico')
   })
 
   it('shows the current turn, opening time, recent sales and existing workflow links', async () => {
@@ -129,6 +150,9 @@ describe('DashboardPage', () => {
       revenue: 0,
       salesCount: 0,
       averageTicket: 0,
+      grossProfitKnownAmount: 0,
+      grossProfitComplete: true,
+      itemsWithoutHistoricalCost: 0,
       currentTurn: null,
       recentSales: [],
     })

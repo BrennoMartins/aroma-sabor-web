@@ -9,12 +9,19 @@ const SaleItemSchema = z.object({
   subtotal: z.number(),
 })
 
+const GrossProfitFieldsSchema = {
+  grossProfitKnownAmount: z.number().finite().nullable(),
+  grossProfitComplete: z.boolean(),
+  itemsWithoutHistoricalCost: z.number().int().nonnegative(),
+}
+
 const SaleSchema = z.object({
   id: z.number(),
   total: z.number(),
   status: z.string(),
   createdAt: z.string(),
   items: z.array(SaleItemSchema),
+  ...GrossProfitFieldsSchema,
 })
 
 export type SaleItem = z.infer<typeof SaleItemSchema>

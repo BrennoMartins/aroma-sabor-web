@@ -3,9 +3,11 @@ import { DASHBOARD_LOW_STOCK_QUERY_KEY } from '../../dashboard/hooks/useDashboar
 import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
 import {
   adjustProductStock,
+  discardProductStock,
   replenishProduct,
   type ProductRecord,
   type StockAdjustmentRequest,
+  type StockDiscardRequest,
   type StockReplenishmentRequest,
 } from '../../product/services/productApi'
 import { toast } from '../../shared/components/Toast/toast-store'
@@ -47,4 +49,24 @@ export function useAdjustStock() {
   return useStockMutation<StockAdjustmentRequest>('adjustment', ({ id, payload }) =>
     adjustProductStock(id, payload),
   )
+}
+
+export function useDiscardStock() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: StockDiscardRequest }) =>
+      discardProductStock(id, payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: STOCK_MOVEMENTS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
+      ])
+      toast.success('Descarte registrado com sucesso.')
+    },
+    onError: (error) => {
+      toast.error(getInventoryErrorMessage(error, 'discard'))
+    },
+  })
 }
