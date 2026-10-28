@@ -131,7 +131,7 @@ export function DashboardPage() {
         <>
           <section className={styles.metrics} aria-label="Indicadores de hoje">
             <DashboardMetric
-              title="Faturamento do dia"
+              title="Faturamento líquido do dia"
               value={currencyFormatter.format(summary.revenue)}
               icon={Banknote}
               tone="primary"

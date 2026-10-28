@@ -285,7 +285,7 @@ export function SalesReportPage() {
         <div className={styles.reportContent} aria-busy={reportQuery.isFetching}>
           <section className={styles.metrics} aria-label="Indicadores do período">
             <ReportMetric
-              label="Receita total"
+              label="Receita líquida total"
               value={currencyFormatter.format(report.totalRevenue)}
               icon={Banknote}
               tone="primary"

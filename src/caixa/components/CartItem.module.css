@@ -46,6 +46,22 @@
   color: var(--color-text-secondary);
 }
 
+.priceBlock {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.negotiated {
+  color: var(--color-warning-base);
+  font-size: var(--font-caption-size);
+}
+
+.editPriceButton {
+  min-height: 32px;
+  padding-inline: 10px;
+}
+
 .subtotal {
   font-size: 1rem;
 }

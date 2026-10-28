@@ -18,6 +18,7 @@ type CartItem = {
   productId: number
   name: string
   price: number
+  catalogPrice?: number
   barcode: string
   quantity: number
 }
@@ -96,11 +97,20 @@ vi.mock('../../shared/components/LoadingOverlay/loading-overlay-store', () => ({
   },
 }))
 
-function createCartState(items: CartItem[]) {
+function createCartState(rawItems: CartItem[], discountAmount = 0) {
+  const items = rawItems.map((item) => ({ ...item, catalogPrice: item.catalogPrice ?? item.price }))
+  const subtotal = items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0) / 100
+
   return {
     items,
     totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
-    total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    subtotal,
+    discountAmount,
+    total: Math.round((subtotal - discountAmount) * 100) / 100,
+    discountResetCount: 0,
+    updateUnitPrice: vi.fn(),
+    setDiscountAmount: vi.fn(),
+    clearDiscount: vi.fn(),
     addProduct: vi.fn(),
     incrementItem: vi.fn(),
     decrementItem: vi.fn(),
@@ -230,8 +240,8 @@ describe('CaixaPage checkout flow', () => {
     document.body.innerHTML = ''
   })
 
-  async function renderWithCart(items: CartItem[], isMarketOpen = true) {
-    const cartState = createCartState(items)
+  async function renderWithCart(items: CartItem[], isMarketOpen = true, discountAmount = 0) {
+    const cartState = createCartState(items, discountAmount)
     useCartMock.mockReturnValue(cartState)
     useMarketSessionMock.mockReturnValue(createMarketSessionState(isMarketOpen))
 
@@ -335,11 +345,41 @@ describe('CaixaPage checkout flow', () => {
 
     expect(createSaleMock).toHaveBeenCalledTimes(1)
     expect(createSaleMock.mock.calls[0]?.[0]).toEqual({
+      discountAmount: 0,
       items: [
-        { productId: 10, quantity: 2 },
-        { productId: 11, quantity: 2 },
+        { productId: 10, quantity: 2, unitPrice: 10 },
+        { productId: 11, quantity: 2, unitPrice: 5 },
       ],
     })
+  })
+
+  it('envia desconto e preco negociado sem subtotal, total nem custo', async () => {
+    createSaleMock.mockResolvedValue({ id: 1, total: 22 })
+
+    await renderWithCart(
+      [{ productId: 10, name: 'Cafe', price: 12.5, catalogPrice: 10, barcode: '123', quantity: 2 }],
+      true,
+      3,
+    )
+
+    act(() => {
+      pressKey('F9')
+    })
+    expect(document.body.textContent).toContain('Subtotal')
+    expect(document.body.textContent).toContain('Desconto')
+    act(() => {
+      clickByText('Finalizar venda')
+    })
+    await flush()
+
+    const payload = createSaleMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).toEqual({
+      discountAmount: 3,
+      items: [{ productId: 10, quantity: 2, unitPrice: 12.5 }],
+    })
+    expect(payload).not.toHaveProperty('subtotal')
+    expect(payload).not.toHaveProperty('total')
+    expect(JSON.stringify(payload)).not.toMatch(/cost/i)
   })
 
   it('mostra loading durante envio e evita duplo envio', async () => {
@@ -908,5 +948,250 @@ describe('CaixaPage checkout flow', () => {
 
     expect(getByBarcodeMock.mock.calls.at(-1)?.[0]).toBe('7890008')
     expect(cartState.addProduct).toHaveBeenCalledWith(product)
+  })
+})
+
+describe('CaixaPage desconto e preco unitario', () => {
+  let container: HTMLDivElement
+  let root: Root
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    createSaleMock.mockReset()
+    getByBarcodeMock.mockReset()
+    toastInfoMock.mockReset()
+    toastErrorMock.mockReset()
+    useCartMock.mockReset()
+    useMarketSessionMock.mockReset()
+    getCategoriesMock.mockReset()
+    getCategoriesMock.mockResolvedValue([])
+    scannerListener = null
+  })
+
+  afterEach(() => {
+    act(() => {
+      root.unmount()
+    })
+    container.remove()
+    document.body.innerHTML = ''
+  })
+
+  async function render(items: CartItem[], discountAmount = 0, isMarketOpen = true) {
+    const cartState = createCartState(items, discountAmount)
+    useCartMock.mockReturnValue(cartState)
+    useMarketSessionMock.mockReturnValue(createMarketSessionState(isMarketOpen))
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <CaixaPage />
+        </QueryClientProvider>,
+      )
+    })
+    return cartState
+  }
+
+  const coffee: CartItem = { productId: 1, name: 'Cafe', price: 10, barcode: '123', quantity: 2 }
+
+  function submitAmount(value: string) {
+    act(() => {
+      setFieldValue('[name="money-amount"]', value)
+    })
+    act(() => {
+      document.querySelector('#money-amount-form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+  }
+
+  it('mostra desconto inicial zero e o atalho F8', async () => {
+    await render([coffee])
+
+    expect(document.body.textContent).toContain('Subtotal')
+    expect(document.body.textContent).toContain('- R$')
+    expect(document.body.textContent).toContain('F8')
+  })
+
+  it('abre o desconto com F8, inclusive com foco em input, sem digitar nada nele', async () => {
+    await render([coffee])
+    const barcodeInput = document.querySelector<HTMLInputElement>('[name="manualBarcode"]')
+    barcodeInput?.focus()
+
+    const event = new KeyboardEvent('keydown', { key: 'F8', bubbles: true, cancelable: true })
+    act(() => {
+      barcodeInput?.dispatchEvent(event)
+    })
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(document.body.textContent).toContain('Desconto da venda')
+    expect(document.body.textContent).not.toContain('Confirmar venda')
+    expect(barcodeInput?.value).toBe('')
+  })
+
+  it('nao abre F8 sem itens, com mercado fechado ou com outro modal aberto', async () => {
+    await render([], 0)
+    act(() => {
+      pressKey('F8')
+    })
+    expect(document.body.textContent).not.toContain('Desconto da venda')
+    expect(toastInfoMock).toHaveBeenCalled()
+
+    act(() => {
+      root.unmount()
+    })
+    root = createRoot(container)
+    await render([coffee], 0, false)
+    act(() => {
+      pressKey('F8')
+    })
+    expect(document.body.textContent).not.toContain('Desconto da venda')
+
+    act(() => {
+      root.unmount()
+    })
+    root = createRoot(container)
+    await render([coffee])
+    act(() => {
+      pressKey('F9')
+    })
+    act(() => {
+      pressKey('F8')
+    })
+    expect(document.body.textContent).not.toContain('Desconto da venda')
+    expect(document.body.textContent).toContain('Confirmar venda')
+  })
+
+  it('F9 e Escape continuam funcionando e nao agem enquanto o desconto esta aberto', async () => {
+    await render([coffee])
+    act(() => {
+      pressKey('F8')
+    })
+    act(() => {
+      pressKey('F9')
+    })
+    expect(document.body.textContent).not.toContain('Confirmar venda')
+    expect(document.body.textContent).not.toContain('Cancelar venda?')
+
+    act(() => {
+      pressKey('Escape')
+    })
+    expect(document.body.textContent).not.toContain('Desconto da venda')
+    expect(document.body.textContent).not.toContain('Cancelar venda?')
+
+    act(() => {
+      pressKey('Escape')
+    })
+    expect(document.body.textContent).toContain('Cancelar venda?')
+  })
+
+  it('aplica desconto valido, aceita desconto igual ao subtotal e aceita virgula', async () => {
+    const cart = await render([coffee])
+    act(() => {
+      pressKey('F8')
+    })
+    submitAmount('5,50')
+    expect(cart.setDiscountAmount).toHaveBeenLastCalledWith(5.5)
+    expect(document.body.textContent).not.toContain('Desconto da venda')
+
+    act(() => {
+      pressKey('F8')
+    })
+    submitAmount('20')
+    expect(cart.setDiscountAmount).toHaveBeenLastCalledWith(20)
+  })
+
+  it('rejeita desconto negativo, invalido, com muitas casas ou maior que o subtotal', async () => {
+    const cart = await render([coffee])
+    act(() => {
+      pressKey('F8')
+    })
+
+    for (const value of ['-1', 'abc', '', '1,234', '20,01']) {
+      submitAmount(value)
+      expect(document.querySelector('[role="alert"]')).not.toBeNull()
+    }
+    expect(cart.setDiscountAmount).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Desconto da venda')
+  })
+
+  it('altera e remove o desconto, e cancelar preserva o desconto confirmado', async () => {
+    const cart = await render([coffee], 4)
+    act(() => {
+      pressKey('F8')
+    })
+    expect(document.querySelector<HTMLInputElement>('[name="money-amount"]')?.value).toBe('4,00')
+
+    act(() => {
+      clickByText('Cancelar')
+    })
+    expect(cart.setDiscountAmount).not.toHaveBeenCalled()
+    expect(cart.clearDiscount).not.toHaveBeenCalled()
+
+    act(() => {
+      pressKey('F8')
+    })
+    act(() => {
+      clickByText('Remover desconto')
+    })
+    expect(cart.clearDiscount).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Desconto da venda')
+  })
+
+  it('edita o preco unitario abaixo e acima do cadastrado', async () => {
+    const cart = await render([coffee])
+
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[class*="editPriceButton"]')?.click()
+    })
+    expect(document.body.textContent).toContain('Editar preco unitario')
+    submitAmount('7,5')
+    expect(cart.updateUnitPrice).toHaveBeenLastCalledWith(1, 7.5)
+
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[class*="editPriceButton"]')?.click()
+    })
+    submitAmount('15')
+    expect(cart.updateUnitPrice).toHaveBeenLastCalledWith(1, 15)
+  })
+
+  it('rejeita preco zero, negativo ou invalido e cancela sem alterar o item', async () => {
+    const cart = await render([coffee])
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[class*="editPriceButton"]')?.click()
+    })
+
+    for (const value of ['0', '0,00', '-3', 'abc', '1,999']) {
+      submitAmount(value)
+      expect(document.querySelector('[role="alert"]')).not.toBeNull()
+    }
+    expect(cart.updateUnitPrice).not.toHaveBeenCalled()
+
+    act(() => {
+      clickByText('Cancelar')
+    })
+    expect(document.body.textContent).not.toContain('Editar preco unitario')
+    expect(cart.updateUnitPrice).not.toHaveBeenCalled()
+  })
+
+  it('indica preco negociado diferente do cadastrado', async () => {
+    await render([{ ...coffee, price: 12, catalogPrice: 10 }])
+
+    expect(document.body.textContent).toContain('Negociado')
+  })
+
+  it('bloqueia leitura do scanner enquanto uma edicao esta aberta', async () => {
+    getByBarcodeMock.mockResolvedValue({ id: 2, name: 'Pao', price: 1, barcode: '999' })
+    await render([coffee])
+    act(() => {
+      pressKey('F8')
+    })
+    act(() => {
+      scannerListener?.('999')
+    })
+    await flush()
+
+    expect(getByBarcodeMock).not.toHaveBeenCalled()
   })
 })

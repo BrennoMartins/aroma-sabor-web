@@ -8,9 +8,10 @@ type CartTableProps = {
   onIncrement: (productId: number) => void
   onDecrement: (productId: number) => void
   onRemove: (productId: number) => void
+  onEditPrice: (productId: number) => void
 }
 
-export function CartTable({ items, onIncrement, onDecrement, onRemove }: CartTableProps) {
+export function CartTable({ items, onIncrement, onDecrement, onRemove, onEditPrice }: CartTableProps) {
   if (items.length === 0) {
     return (
       <Card title="Carrinho" className={styles.card}>
@@ -40,6 +41,7 @@ export function CartTable({ items, onIncrement, onDecrement, onRemove }: CartTab
             onIncrement={onIncrement}
             onDecrement={onDecrement}
             onRemove={onRemove}
+            onEditPrice={onEditPrice}
           />
         ))}
       </div>

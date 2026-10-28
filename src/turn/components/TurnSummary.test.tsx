@@ -101,6 +101,26 @@ describe('TurnSummary', () => {
     expect(getTurnSummaryMock).toHaveBeenCalledWith('turn-1')
   })
 
+  it('identifica valores por produto como anteriores ao desconto geral, sem somá-los ao faturamento', async () => {
+    getTurnSummaryMock.mockResolvedValueOnce(createSummary({
+      totalRevenue: 90,
+      topProducts: [
+        { productId: 1, productName: 'Café', quantitySold: 2, revenue: 60 },
+        { productId: 2, productName: 'Pão', quantitySold: 4, revenue: 40 },
+      ],
+    }))
+
+    await render()
+    await waitForText('Café')
+
+    const text = (document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+    expect(text).toContain('Faturamento líquido')
+    expect(text).toContain('R$ 90,00')
+    expect(text).toContain('antes do desconto geral')
+    expect(text).not.toContain('R$ 100,00')
+    expect(container.querySelector('[aria-label^="Valor antes do desconto geral"]')).not.toBeNull()
+  })
+
   it('mostra no máximo cinco produtos com posição, quantidade e receita', async () => {
     getTurnSummaryMock.mockResolvedValueOnce(createSummary())
 

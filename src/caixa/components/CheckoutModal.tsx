@@ -6,6 +6,8 @@ type CheckoutModalProps = {
   isOpen: boolean
   totalItems: number
   totalProducts: number
+  subtotal: number
+  discountAmount: number
   total: number
   isSubmitting: boolean
   onConfirm: () => void
@@ -23,6 +25,8 @@ export function CheckoutModal({
   isOpen,
   totalItems,
   totalProducts,
+  subtotal,
+  discountAmount,
   total,
   isSubmitting,
   onConfirm,
@@ -58,6 +62,14 @@ export function CheckoutModal({
           <div className={styles.summaryCard}>
             <span className={styles.label}>Produtos</span>
             <strong>{totalProducts}</strong>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.label}>Subtotal</span>
+            <strong>{formatCurrency(subtotal)}</strong>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.label}>Desconto</span>
+            <strong>- {formatCurrency(discountAmount)}</strong>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.label}>Total</span>

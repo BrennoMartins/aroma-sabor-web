@@ -46,6 +46,21 @@ describe('salesApi', () => {
     expect(api.get).toHaveBeenCalledWith('/sales/41')
   })
 
+  it('aceita subtotal, desconto e lucro bruto conhecido negativo', async () => {
+    const discounted = { ...sale, subtotal: 40, discountAmount: 10, total: 30, grossProfitKnownAmount: -2, grossProfitComplete: false }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: discounted })
+
+    await expect(getSaleById('41')).resolves.toEqual(discounted)
+  })
+
+  it('não preenche subtotal nem desconto quando a resposta é antiga', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ data: sale })
+
+    const result = await getSaleById('41')
+    expect(result.subtotal).toBeUndefined()
+    expect(result.discountAmount).toBeUndefined()
+  })
+
   it('rejeita respostas que não correspondem ao DTO de venda', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({ data: [{ ...sale, items: undefined }] })
 

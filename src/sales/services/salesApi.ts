@@ -17,6 +17,8 @@ const GrossProfitFieldsSchema = {
 
 const SaleSchema = z.object({
   id: z.number(),
+  subtotal: z.number().nonnegative().optional(),
+  discountAmount: z.number().nonnegative().optional(),
   total: z.number(),
   status: z.string(),
   createdAt: z.string(),

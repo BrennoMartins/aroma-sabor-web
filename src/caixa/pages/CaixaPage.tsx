@@ -4,11 +4,13 @@ import { isAxiosError } from 'axios'
 import { Button } from '../../shared/components/Button/Button'
 import { CartTable } from '../components/CartTable'
 import { CheckoutModal } from '../components/CheckoutModal'
+import { MoneyAmountModal } from '../components/MoneyAmountModal'
 import { ScannerAudioFeedback } from '../components/ScannerAudioFeedback'
 import { TotalPanel } from '../components/TotalPanel'
 import { useCart } from '../hooks/useCart'
 import { getCheckoutErrorMessage } from '../services/checkoutErrorMessage'
 import { createSale } from '../services/saleApi'
+import { formatCurrency, fromCents, toCents } from '../utils/money'
 import { getByBarcode, searchProductsByName } from '../../shared/api/products'
 import type { Product } from '../../shared/api/products'
 import { Input } from '../../shared/components/Input/Input'
@@ -90,15 +92,29 @@ export function CaixaPage() {
   const isSubmittingSaleRef = useRef(false)
   const {
     items,
+    subtotal,
+    discountAmount,
     total,
     totalItems,
+    discountResetCount,
     addProduct,
     incrementItem,
     decrementItem,
     removeItem,
+    updateUnitPrice,
+    setDiscountAmount,
+    clearDiscount,
     clearCart,
   } = useCart()
-  const isAnyModalOpen = isCheckoutOpen || isCancelDialogOpen || missingProductBarcode !== null
+  const [isDiscountOpen, setIsDiscountOpen] = useState(false)
+  const [priceEditProductId, setPriceEditProductId] = useState<number | null>(null)
+  const priceEditItem = items.find((item) => item.productId === priceEditProductId) ?? null
+  const isAnyModalOpen =
+    isCheckoutOpen ||
+    isCancelDialogOpen ||
+    isDiscountOpen ||
+    priceEditItem !== null ||
+    missingProductBarcode !== null
   const isMarketOpen = isOpen
 
   const manualNameQuery = useQuery({
@@ -269,10 +285,21 @@ export function CaixaPage() {
       return
     }
 
+    if (
+      items.some((item) => toCents(item.price) <= 0) ||
+      toCents(discountAmount) < 0 ||
+      toCents(discountAmount) > toCents(subtotal)
+    ) {
+      toast.error('Revise precos e desconto antes de finalizar a venda.')
+      return
+    }
+
     checkoutMutation.mutate({
+      discountAmount,
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
+        unitPrice: item.price,
       })),
     })
   }
@@ -360,8 +387,35 @@ export function CaixaPage() {
   }, [])
 
   useEffect(() => {
+    if (discountResetCount > 0) {
+      toast.info('Desconto removido: o subtotal ficou menor que o desconto. Aplique novamente, se necessario.')
+    }
+  }, [discountResetCount])
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target) || isAnyModalOpen || !isMarketOpen) {
+      if (isAnyModalOpen || !isMarketOpen) {
+        return
+      }
+
+      // F8 works from inside input fields; it never produces printable characters.
+      if (event.key === 'F8') {
+        event.preventDefault()
+
+        if (event.repeat) {
+          return
+        }
+
+        if (items.length > 0) {
+          setIsDiscountOpen(true)
+        } else {
+          toast.info('Adicione itens ao carrinho antes de aplicar desconto.')
+        }
+
+        return
+      }
+
+      if (isTypingTarget(event.target)) {
         return
       }
 
@@ -537,9 +591,20 @@ export function CaixaPage() {
               onIncrement={handleIncrementItem}
               onDecrement={handleDecrementItem}
               onRemove={handleRemoveItem}
+              onEditPrice={setPriceEditProductId}
             />
 
-            <TotalPanel total={total} totalItems={totalItems} />
+            <TotalPanel
+              subtotal={subtotal}
+              discountAmount={discountAmount}
+              total={total}
+              totalItems={totalItems}
+              onEditDiscount={() => {
+                if (items.length > 0) {
+                  setIsDiscountOpen(true)
+                }
+              }}
+            />
           </div>
         </>
       ) : isTurnLoading ? null : (
@@ -558,11 +623,71 @@ export function CaixaPage() {
         isOpen={isCheckoutOpen}
         totalItems={totalItems}
         totalProducts={items.length}
+        subtotal={subtotal}
+        discountAmount={discountAmount}
         total={total}
         isSubmitting={checkoutMutation.isPending}
         onConfirm={handleConfirmSale}
         onCancel={() => setIsCheckoutOpen(false)}
       />
+
+      {isDiscountOpen ? (
+        <MoneyAmountModal
+          title="Desconto da venda"
+          label="Desconto em reais"
+          initialValue={discountAmount > 0 ? discountAmount : null}
+          confirmLabel="Aplicar desconto"
+          details={
+            <>
+              <span>
+                Subtotal: <strong>{formatCurrency(subtotal)}</strong>
+              </span>
+              <span>
+                Desconto aplicado: <strong>{formatCurrency(discountAmount)}</strong>
+              </span>
+            </>
+          }
+          validate={(cents) =>
+            cents > toCents(subtotal)
+              ? `O desconto nao pode ser maior que o subtotal (${formatCurrency(subtotal)}).`
+              : null
+          }
+          onConfirm={(cents) => {
+            setDiscountAmount(fromCents(cents))
+            setIsDiscountOpen(false)
+          }}
+          onRemove={
+            discountAmount > 0
+              ? () => {
+                  clearDiscount()
+                  setIsDiscountOpen(false)
+                }
+              : undefined
+          }
+          removeLabel="Remover desconto"
+          onClose={() => setIsDiscountOpen(false)}
+        />
+      ) : null}
+
+      {priceEditItem ? (
+        <MoneyAmountModal
+          title="Editar preco unitario"
+          label={`Preco unitario de ${priceEditItem.name}`}
+          initialValue={priceEditItem.price}
+          confirmLabel="Salvar preco"
+          details={
+            <span>
+              Preco cadastrado: <strong>{formatCurrency(priceEditItem.catalogPrice)}</strong>
+            </span>
+          }
+          validate={(cents) => (cents <= 0 ? 'O preco unitario deve ser maior que zero.' : null)}
+          onConfirm={(cents) => {
+            updateUnitPrice(priceEditItem.productId, fromCents(cents))
+            setPriceEditProductId(null)
+          }}
+          onClose={() => setPriceEditProductId(null)}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={isCancelDialogOpen}
