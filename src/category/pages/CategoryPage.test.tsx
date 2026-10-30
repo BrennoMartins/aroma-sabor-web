@@ -119,7 +119,10 @@ describe('CategoryPage', () => {
     getCategoriesMock.mockResolvedValueOnce([category])
     await render()
     await waitForText('ul', 'Mercearia')
+    expect(document.querySelector('h1')?.textContent).toBe('Categorias')
+    expect(document.body.textContent).toContain('1 categoria')
     expect(document.querySelector('ul')?.textContent).toContain('Mercearia')
+    expect(document.querySelector<HTMLInputElement>('[name="name"]')?.placeholder).toBe('Ex.: Mercearia')
 
     root.unmount()
     root = createRoot(container)
@@ -127,6 +130,7 @@ describe('CategoryPage', () => {
     getCategoriesMock.mockResolvedValueOnce([])
     await render()
     await waitForText('[role="status"]', 'Nenhuma categoria cadastrada.')
+    expect(document.body.textContent).toContain('0 categorias')
   })
 
   it('shows errors and retries loading categories', async () => {

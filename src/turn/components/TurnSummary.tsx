@@ -91,7 +91,7 @@ function SummaryContent({ summary }: { summary: TurnSummaryData }) {
           <strong>{quantityFormatter.format(summary.salesCount)}</strong>
         </div>
         <div className={styles.metric}>
-          <span>Faturamento</span>
+          <span>Faturamento líquido</span>
           <strong>{currencyFormatter.format(summary.totalRevenue)}</strong>
         </div>
         <div className={styles.metric}>
@@ -107,6 +107,11 @@ function SummaryContent({ summary }: { summary: TurnSummaryData }) {
       <section aria-labelledby="turn-summary-top-products" className={styles.productsSection}>
         <h3 id="turn-summary-top-products" className={styles.sectionTitle}>Top produtos</h3>
         {topProducts.length ? (
+          <p className={styles.mutedMessage}>
+            Valores por produto antes do desconto geral; não somam o faturamento líquido do turno.
+          </p>
+        ) : null}
+        {topProducts.length ? (
           <ol className={styles.productList}>
             {topProducts.map((product, index) => (
               <li className={styles.product} key={product.productId}>
@@ -117,7 +122,13 @@ function SummaryContent({ summary }: { summary: TurnSummaryData }) {
                   <strong>{product.productName}</strong>
                   <span>{quantityFormatter.format(product.quantitySold)} un.</span>
                 </div>
-                <strong className={styles.revenue}>{currencyFormatter.format(product.revenue)}</strong>
+                <strong
+                  className={styles.revenue}
+                  title="Valor antes do desconto geral"
+                  aria-label={`Valor antes do desconto geral: ${currencyFormatter.format(product.revenue)}`}
+                >
+                  {currencyFormatter.format(product.revenue)}
+                </strong>
               </li>
             ))}
           </ol>

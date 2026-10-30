@@ -8,13 +8,13 @@ import {
   DASHBOARD_TOP_PRODUCTS_QUERY_KEY,
 } from '../../dashboard/hooks/useDashboardProducts'
 import type { CategoryRecord } from '../../category/services/categoryApi'
-import type { ProductRecord } from '../services/productApi'
+import type { ProductCatalogParams, ProductCatalogResponse, ProductRecord } from '../services/productApi'
+import { PRODUCT_CATALOG_QUERY_KEY } from '../hooks/useProducts'
 import { ProductList } from './ProductList'
 
 const {
   getCategoriesMock,
-  getProductsMock,
-  getInactiveProductsMock,
+  getCatalogMock,
   updateProductMock,
   deactivateProductMock,
   reactivateProductMock,
@@ -22,13 +22,27 @@ const {
   toastSuccessMock,
 } = vi.hoisted(() => ({
   getCategoriesMock: vi.fn(),
-  getProductsMock: vi.fn(),
-  getInactiveProductsMock: vi.fn(),
+  getCatalogMock: vi.fn(),
   updateProductMock: vi.fn(),
   deactivateProductMock: vi.fn(),
   reactivateProductMock: vi.fn(),
   toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
+}))
+const scannerState = vi.hoisted(() => {
+  const listeners = new Set<(barcode: string) => void>()
+
+  return {
+    listeners,
+    onScan: vi.fn((listener: (barcode: string) => void) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    }),
+  }
+})
+
+vi.mock('../../scanner/useBarcodeScanner', () => ({
+  useBarcodeScanner: () => ({ onScan: scannerState.onScan }),
 }))
 
 vi.mock('../../category/services/categoryApi', () => ({
@@ -36,8 +50,7 @@ vi.mock('../../category/services/categoryApi', () => ({
 }))
 
 vi.mock('../services/productApi', () => ({
-  getProducts: (...args: unknown[]) => getProductsMock(...args),
-  getInactiveProducts: (...args: unknown[]) => getInactiveProductsMock(...args),
+  getProductCatalog: (...args: unknown[]) => getCatalogMock(...args),
   updateProduct: (...args: unknown[]) => updateProductMock(...args),
   deactivateProduct: (...args: unknown[]) => deactivateProductMock(...args),
   reactivateProduct: (...args: unknown[]) => reactivateProductMock(...args),
@@ -105,6 +118,9 @@ const inactiveProducts: ProductRecord[] = [
   },
 ]
 
+let activeCatalogProducts = products
+let inactiveCatalogProducts = inactiveProducts
+
 function setFieldValue(selector: string, value: string) {
   const field = document.querySelector<HTMLInputElement | HTMLSelectElement>(selector)
 
@@ -112,10 +128,31 @@ function setFieldValue(selector: string, value: string) {
     throw new Error(`Field not found: ${selector}`)
   }
 
-  const prototype = field instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype
-  const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set
-  valueSetter?.call(field, value)
-  field.dispatchEvent(new Event(field instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }))
+  act(() => {
+    const prototype = field instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype
+    const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set
+    valueSetter?.call(field, value)
+    field.dispatchEvent(new Event(field instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }))
+  })
+}
+
+function getCatalogPage(params: ProductCatalogParams): ProductCatalogResponse {
+  const source = params.active ? activeCatalogProducts : inactiveCatalogProducts
+  const matchingProducts = source.filter((product) => {
+    const matchesSearch =
+      product.name.toLocaleLowerCase('pt-BR').includes(params.search.toLocaleLowerCase('pt-BR')) ||
+      product.barcode === params.search
+    return matchesSearch && (!params.categoryId || product.categoryId === params.categoryId)
+  })
+  const start = params.page * params.size
+
+  return {
+    content: matchingProducts.slice(start, start + params.size),
+    page: params.page,
+    size: params.size,
+    totalElements: matchingProducts.length,
+    totalPages: Math.ceil(matchingProducts.length / params.size),
+  }
 }
 
 describe('ProductList', () => {
@@ -130,23 +167,28 @@ describe('ProductList', () => {
     root = createRoot(container)
     queryClient = new QueryClient({
       defaultOptions: {
-        queries: { retry: false, gcTime: 0 },
+        queries: { retry: false, gcTime: 5 * 60 * 1000 },
       },
     })
     getCategoriesMock.mockReset()
-    getProductsMock.mockReset()
-    getInactiveProductsMock.mockReset()
+    getCatalogMock.mockReset()
     updateProductMock.mockReset()
     deactivateProductMock.mockReset()
     reactivateProductMock.mockReset()
     toastErrorMock.mockReset()
     toastSuccessMock.mockReset()
+    scannerState.listeners.clear()
+    scannerState.onScan.mockClear()
     getCategoriesMock.mockResolvedValue(categories)
-    getProductsMock.mockResolvedValue(products)
-    getInactiveProductsMock.mockResolvedValue(inactiveProducts)
+    getCatalogMock.mockImplementation(async (params: ProductCatalogParams) => getCatalogPage(params))
+    activeCatalogProducts = products
+    inactiveCatalogProducts = inactiveProducts
+    queryClient.setQueryData(['products'], products)
+    queryClient.setQueryData(['products', 'inactive'], inactiveProducts)
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     act(() => {
       root.unmount()
     })
@@ -155,18 +197,24 @@ describe('ProductList', () => {
     document.body.innerHTML = ''
   })
 
-  async function render() {
+  async function render(
+    searchInitially = true,
+    props: { onScannerRead?: (barcode: string) => void; scannerEnabled?: boolean } = {},
+  ) {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <ProductList />
+          <ProductList {...props} />
         </QueryClientProvider>,
       )
     })
+    if (searchInitially) {
+      setFieldValue('input[type="search"]', 'a')
+    }
   }
 
   async function waitForText(text: string) {
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
       if (document.body.textContent?.includes(text)) {
         return
       }
@@ -186,15 +234,41 @@ describe('ProductList', () => {
     })
   }
 
+  async function emitScannerRead(barcode: string) {
+    await act(async () => {
+      scannerState.listeners.forEach((listener) => listener(barcode))
+      await Promise.resolve()
+    })
+  }
+
+  async function waitForEnabledButton(label: string) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const button = Array.from(container.querySelectorAll('button')).find((candidate) =>
+        candidate.textContent?.includes(label),
+      )
+      if (button && !button.disabled) {
+        return button
+      }
+
+      await act(async () => {
+        await new Promise((resolve) => window.setTimeout(resolve, 5))
+      })
+    }
+
+    throw new Error(`Timed out waiting for enabled button: ${label}`)
+  }
+
   it('busca produtos por nome e inclui nome e código de barras na orientação', async () => {
     await render()
     await waitForText('Água mineral')
 
     const search = container.querySelector<HTMLInputElement>('input[type="search"]')
     expect(search?.labels?.[0]?.textContent).toBe('Buscar produto')
-    expect(search?.placeholder).toBe('Nome ou código de barras')
+    expect(search?.placeholder).toBe('Digite o nome ou leia o código de barras...')
 
     setFieldValue('input[type="search"]', 'especial')
+    expect(container.textContent).not.toContain('Café especial')
+    await waitForText('Café especial')
 
     expect(container.textContent).toContain('Café especial')
     expect(container.textContent).not.toContain('Café gelado')
@@ -202,14 +276,91 @@ describe('ProductList', () => {
   })
 
   it('busca por código de barras', async () => {
-    await render()
-    await waitForText('Água mineral')
+    await render(false)
 
-    setFieldValue('input[type="search"]', '0000002')
+    setFieldValue('input[type="search"]', '7892000000002')
+    await waitForText('Café gelado')
 
     expect(container.textContent).toContain('Café gelado')
     expect(container.textContent).not.toContain('Café especial')
     expect(container.textContent).not.toContain('Água mineral')
+  })
+
+  it('mantém a pesquisa manual por código no catálogo sem iniciar cadastro inteligente', async () => {
+    const onScannerRead = vi.fn()
+    await render(false, { onScannerRead })
+
+    setFieldValue('input[type="search"]', '7892000000002')
+    await waitForText('Café gelado')
+
+    expect(onScannerRead).not.toHaveBeenCalled()
+    expect(getCatalogMock).toHaveBeenLastCalledWith(
+      { search: '7892000000002', active: true, page: 0, size: 20 },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('a leitura atualiza a pesquisa, reseta a página e mantém categoria e situação com uma inscrição', async () => {
+    const manyProducts = Array.from({ length: 21 }, (_, index) => ({
+      ...products[0],
+      id: index + 10,
+      name: `Item ${String(index + 1).padStart(2, '0')}`,
+    }))
+    const onScannerRead = vi.fn()
+    getCatalogMock.mockImplementation(async (params: ProductCatalogParams) => {
+      const start = params.page * params.size
+      return {
+        content: manyProducts.slice(start, start + params.size),
+        page: params.page,
+        size: params.size,
+        totalElements: manyProducts.length,
+        totalPages: 2,
+      }
+    })
+
+    await render(false, { onScannerRead })
+    setFieldValue('input[type="search"]', 'item')
+    await waitForText('Página 1 de 2')
+    setFieldValue('#product-category-filter', '7')
+    await waitForText('Página 1 de 2')
+    await clickButton(
+      Array.from(container.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Produtos inativos'),
+      ) ?? null,
+    )
+    await waitForText('Página 1 de 2')
+    await clickButton(await waitForEnabledButton('Próxima'))
+    await waitForText('Página 2 de 2')
+
+    expect(scannerState.listeners.size).toBe(1)
+    await emitScannerRead('0007891000001')
+    await waitForText('Página 1 de 2')
+
+    expect(container.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('0007891000001')
+    expect(onScannerRead).toHaveBeenCalledTimes(1)
+    expect(onScannerRead).toHaveBeenCalledWith('0007891000001')
+    expect(scannerState.listeners.size).toBe(1)
+    expect(getCatalogMock).toHaveBeenLastCalledWith(
+      { search: '0007891000001', active: false, categoryId: 7, page: 0, size: 20 },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('desativa a inscrição do scanner fora da aba de produtos', async () => {
+    await render(false, { scannerEnabled: false })
+
+    expect(scannerState.listeners.size).toBe(0)
+  })
+
+  it('F2 foca e seleciona a pesquisa principal', async () => {
+    await render(false)
+    const search = container.querySelector<HTMLInputElement>('input[type="search"]')
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true }))
+    })
+
+    expect(document.activeElement).toBe(search)
   })
 
   it('carrega categorias da API e filtra pela categoria selecionada', async () => {
@@ -221,6 +372,7 @@ describe('ProductList', () => {
     expect(categorySelect?.options[2]?.textContent).toBe('Bebidas')
 
     setFieldValue('#product-category-filter', '7')
+    await waitForText('Café especial')
 
     expect(container.textContent).toContain('Café especial')
     expect(container.textContent).not.toContain('Café gelado')
@@ -234,6 +386,7 @@ describe('ProductList', () => {
 
     setFieldValue('input[type="search"]', 'café')
     setFieldValue('#product-category-filter', '23')
+    await waitForText('Café gelado')
 
     expect(container.textContent).toContain('Café gelado')
     expect(container.textContent).not.toContain('Café especial')
@@ -256,9 +409,9 @@ describe('ProductList', () => {
 
     expect(container.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('')
     expect(container.querySelector<HTMLSelectElement>('#product-category-filter')?.value).toBe('')
-    expect(container.textContent).toContain('Café especial')
-    expect(container.textContent).toContain('Café gelado')
-    expect(container.textContent).toContain('Água mineral')
+    expect(container.textContent).toContain('Digite o nome ou código de barras para buscar produtos.')
+    expect(container.textContent).not.toContain('Café especial')
+    expect(getCatalogMock).toHaveBeenCalledTimes(1)
   })
 
   it('informa quando os filtros não encontram produtos', async () => {
@@ -266,37 +419,160 @@ describe('ProductList', () => {
     await waitForText('Água mineral')
 
     setFieldValue('input[type="search"]', 'produto inexistente')
+    await waitForText('Nenhum produto encontrado.')
+
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('Nenhum produto encontrado.')
+  })
+
+  it('apresenta o estado inicial sem consultar o catálogo', async () => {
+    await render(false)
 
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
-      'Nenhum produto encontrado. Ajuste ou limpe os filtros.',
+      'Digite o nome ou código de barras para buscar produtos.',
+    )
+    expect(getCatalogMock).not.toHaveBeenCalled()
+    expect(container.querySelector('table')).toBeNull()
+  })
+
+  it('aguarda aproximadamente 300 ms antes de buscar e envia os filtros paginados', async () => {
+    vi.useFakeTimers()
+    await render(false)
+
+    setFieldValue('input[type="search"]', 'a')
+    setFieldValue('#product-category-filter', '7')
+    expect(getCatalogMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299)
+    })
+    expect(getCatalogMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+      await Promise.resolve()
+    })
+
+    expect(getCatalogMock).toHaveBeenCalledWith(
+      { search: 'a', active: true, categoryId: 7, page: 0, size: 20 },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('esconde a consulta anterior enquanto aguarda a busca mais recente', async () => {
+    await render()
+    await waitForText('Água mineral')
+
+    setFieldValue('input[type="search"]', 'especial')
+
+    expect(container.textContent).not.toContain('Café especial')
+    expect(container.textContent).toContain('Atualizando busca...')
+    await waitForText('Café especial')
+    expect(container.textContent).not.toContain('Café gelado')
+  })
+
+  it('não permite que uma resposta lenta de uma busca antiga substitua a busca atual', async () => {
+    let resolveOldSearch: ((response: ProductCatalogResponse) => void) | undefined
+    getCatalogMock.mockImplementation((params: ProductCatalogParams) => {
+      if (params.search === 'antiga') {
+        return new Promise((resolve) => {
+          resolveOldSearch = resolve
+        })
+      }
+      return Promise.resolve(getCatalogPage(params))
+    })
+
+    await render(false)
+    setFieldValue('input[type="search"]', 'antiga')
+    for (let attempt = 0; attempt < 100 && !resolveOldSearch; attempt += 1) {
+      await act(async () => {
+        await new Promise((resolve) => window.setTimeout(resolve, 5))
+      })
+    }
+    expect(resolveOldSearch).toBeDefined()
+
+    setFieldValue('input[type="search"]', 'especial')
+    await waitForText('Café especial')
+    await act(async () => {
+      resolveOldSearch?.({
+        content: [{ ...products[2], name: 'Resultado antigo' }],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      })
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain('Café especial')
+    expect(container.textContent).not.toContain('Resultado antigo')
+  })
+
+  it('mostra contagem e navega sem ultrapassar o total de páginas', async () => {
+    const manyProducts = Array.from({ length: 21 }, (_, index) => ({
+      ...products[0],
+      id: index + 10,
+      name: `Item ${String(index + 1).padStart(2, '0')}`,
+    }))
+    getCatalogMock.mockImplementation(async (params: ProductCatalogParams) => {
+      const start = params.page * params.size
+      return {
+        content: manyProducts.slice(start, start + params.size),
+        page: params.page,
+        size: params.size,
+        totalElements: manyProducts.length,
+        totalPages: 2,
+      }
+    })
+
+    await render(false)
+    setFieldValue('input[type="search"]', 'item')
+    await waitForText('Item 01')
+
+    expect(container.textContent).toContain('21 produtos encontrados')
+    expect(container.textContent).toContain('Página 1 de 2')
+    await clickButton(await waitForEnabledButton('Próxima'))
+    await waitForText('Item 21')
+
+    expect(container.textContent).toContain('Página 2 de 2')
+    const lastNextButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Próxima'),
+    )
+    expect(lastNextButton?.disabled).toBe(true)
+    await clickButton(await waitForEnabledButton('Anterior'))
+    await waitForText('Item 01')
+    expect(container.textContent).toContain('Página 1 de 2')
+
+    await clickButton(await waitForEnabledButton('Próxima'))
+    await waitForText('Item 21')
+    setFieldValue('#product-category-filter', '7')
+    await waitForText('Item 01')
+    expect(getCatalogMock).toHaveBeenLastCalledWith(
+      { search: 'item', active: true, categoryId: 7, page: 0, size: 20 },
+      expect.any(AbortSignal),
     )
   })
 
   it('apresenta estado de carregamento enquanto consulta produtos', async () => {
-    getProductsMock.mockReturnValueOnce(new Promise(() => undefined))
+    getCatalogMock.mockImplementationOnce(() => new Promise(() => undefined))
 
     await render()
-
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Carregando produtos...')
+    await waitForText('Buscando produtos...')
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
   })
 
-  it('mostra erro e permite tentar novamente ao falhar a listagem', async () => {
-    getProductsMock.mockRejectedValueOnce(new Error('network error')).mockResolvedValueOnce(products)
+  it('mostra erro e permite tentar novamente ao falhar a consulta', async () => {
+    getCatalogMock.mockRejectedValueOnce(new Error('network error'))
 
     await render()
-    await waitForText('Não foi possível carregar os produtos ativos.')
+    await waitForText('Não foi possível carregar os produtos.')
 
-    const retryButton = Array.from(container.querySelectorAll('button')).find((button) =>
+    const visibleRetryButton = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Tentar novamente'),
     )
-
-    await act(async () => {
-      retryButton?.click()
-    })
+    await clickButton(visibleRetryButton ?? null)
     await waitForText('Água mineral')
 
-    expect(getProductsMock).toHaveBeenCalledTimes(2)
+    expect(getCatalogMock).toHaveBeenCalledTimes(2)
   })
 
   it('permite tentar novamente quando as categorias falham', async () => {
@@ -344,7 +620,12 @@ describe('ProductList', () => {
       category: 'Bebidas',
       price: 20.75,
     }
-    updateProductMock.mockResolvedValueOnce(updatedProduct)
+    updateProductMock.mockImplementationOnce(async () => {
+      activeCatalogProducts = activeCatalogProducts.map((product) =>
+        product.id === updatedProduct.id ? updatedProduct : product,
+      )
+      return updatedProduct
+    })
 
     await render()
     await waitForText('Água mineral')
@@ -376,6 +657,7 @@ describe('ProductList', () => {
     expect(container.textContent).toContain('7891999999999')
     expect(container.textContent).toContain('Bebidas')
     expect(queryClient.getQueryData<ProductRecord[]>(['products'])?.[0]).toEqual(updatedProduct)
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: PRODUCT_CATALOG_QUERY_KEY })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_TOP_PRODUCTS_QUERY_KEY })
   })
@@ -511,13 +793,22 @@ describe('ProductList', () => {
     expect(container.textContent).toContain('8')
     expect(container.textContent).toContain('Inativo')
     expect(container.textContent).not.toContain('Café especial')
-    expect(getInactiveProductsMock).toHaveBeenCalledTimes(1)
+    expect(getCatalogMock).toHaveBeenLastCalledWith({
+      search: 'a',
+      active: false,
+      page: 0,
+      size: 20,
+    }, expect.any(AbortSignal))
     expect(container.querySelector('button[aria-label="Reativar Produto pausado"]')).not.toBeNull()
   })
 
   it('confirma reativação e atualiza as consultas de ativos e inativos após a resposta', async () => {
     const reactivatedProduct = { ...inactiveProducts[0], active: true }
-    reactivateProductMock.mockResolvedValueOnce(reactivatedProduct)
+    reactivateProductMock.mockImplementationOnce(async () => {
+      activeCatalogProducts = [...activeCatalogProducts, reactivatedProduct]
+      inactiveCatalogProducts = inactiveCatalogProducts.filter((product) => product.id !== reactivatedProduct.id)
+      return reactivatedProduct
+    })
 
     await render()
     await waitForText('Água mineral')
@@ -527,22 +818,19 @@ describe('ProductList', () => {
     await waitForText('Produto pausado')
     await clickButton(container.querySelector<HTMLButtonElement>('button[aria-label="Reativar Produto pausado"]'))
     await waitForText('Deseja reativar "Produto pausado"?')
-    getProductsMock.mockResolvedValueOnce([...products, reactivatedProduct])
-    getInactiveProductsMock.mockResolvedValueOnce([])
 
     expect(reactivateProductMock).not.toHaveBeenCalled()
 
     await clickButton(Array.from(document.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Reativar produto'),
     ) ?? null)
-    await waitForText('Nenhum produto inativo.')
+    await waitForText('Nenhum produto encontrado.')
 
     expect(reactivateProductMock).toHaveBeenCalledWith(4)
-    expect(getProductsMock).toHaveBeenCalledTimes(2)
-    expect(getInactiveProductsMock).toHaveBeenCalledTimes(2)
+    expect(getCatalogMock).toHaveBeenCalledTimes(3)
     expect(toastSuccessMock).toHaveBeenCalledWith('Produto reativado com sucesso e incluído na lista de ativos.')
     expect(document.body.textContent).not.toContain('Deseja reativar')
-    expect(queryClient.getQueryData<ProductRecord[]>(['products'])).toEqual([...products, reactivatedProduct])
+    expect(queryClient.getQueryData<ProductRecord[]>(['products'])).toContainEqual(reactivatedProduct)
   })
 
   it('impede envio duplicado enquanto reativa um produto', async () => {
@@ -622,10 +910,17 @@ describe('ProductList', () => {
   })
 
   it('desativa após confirmação e remove o produto do cache e da lista ativa', async () => {
-    deactivateProductMock.mockResolvedValueOnce(undefined)
+    deactivateProductMock.mockImplementationOnce(async (productId: number) => {
+      const product = activeCatalogProducts.find((item) => item.id === productId)
+      activeCatalogProducts = activeCatalogProducts.filter((item) => item.id !== productId)
+      if (product) {
+        inactiveCatalogProducts = [...inactiveCatalogProducts, { ...product, active: false }]
+      }
+    })
 
     await render()
     await waitForText('Água mineral')
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     await clickButton(container.querySelector<HTMLButtonElement>('button[aria-label="Desativar Café especial"]'))
     await waitForText('Deseja desativar "Café especial"?')
 
@@ -644,6 +939,7 @@ describe('ProductList', () => {
     expect(container.textContent).not.toContain('Café especial')
     expect(container.textContent).toContain('Café gelado')
     expect(queryClient.getQueryData<ProductRecord[]>(['products'])).toEqual(products.slice(1))
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: PRODUCT_CATALOG_QUERY_KEY })
     expect(document.body.textContent).not.toContain('Deseja desativar')
   })
 

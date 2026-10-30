@@ -1,4 +1,4 @@
-import { useEffect, type PropsWithChildren, type ReactNode } from 'react'
+import { useEffect, useId, type PropsWithChildren, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 type ModalProps = PropsWithChildren<{
@@ -9,6 +9,8 @@ type ModalProps = PropsWithChildren<{
 }>
 
 export function Modal({ open, title, actions, onClose, children }: ModalProps) {
+  const titleId = useId()
+
   useEffect(() => {
     if (!open) {
       return
@@ -33,8 +35,14 @@ export function Modal({ open, title, actions, onClose, children }: ModalProps) {
 
   return createPortal(
     <div className="ui-modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="ui-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        {title ? <h3 className="ui-modal__title">{title}</h3> : null}
+      <section
+        className="ui-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {title ? <h3 id={titleId} className="ui-modal__title">{title}</h3> : null}
         <div className="ui-modal__body">{children}</div>
         {actions ? <div className="ui-modal__actions">{actions}</div> : null}
       </section>

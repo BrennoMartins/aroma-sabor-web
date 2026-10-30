@@ -6,6 +6,8 @@ export type Product = {
   name: string
   price: number
   barcode: string
+  stock?: number
+  active?: boolean
 }
 
 const ProductSchema = z.object({
@@ -13,6 +15,8 @@ const ProductSchema = z.object({
   name: z.string(),
   price: z.number(),
   barcode: z.string(),
+  stock: z.number().int().optional(),
+  active: z.boolean().optional(),
 })
 
 const ProductListSchema = z.array(ProductSchema)

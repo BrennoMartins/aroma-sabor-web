@@ -3,8 +3,9 @@ import {
   DASHBOARD_LOW_STOCK_QUERY_KEY,
   DASHBOARD_TOP_PRODUCTS_QUERY_KEY,
 } from '../../dashboard/hooks/useDashboardProducts'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useCategories } from '../../category/hooks/useCategories'
+import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
 import { Button } from '../../shared/components/Button/Button'
 import { Card } from '../../shared/components/Card/Card'
 import { ConfirmDialog } from '../../shared/components/ConfirmDialog/ConfirmDialog'
@@ -21,10 +22,11 @@ import {
 } from '../services/productApi'
 import {
   INACTIVE_PRODUCTS_QUERY_KEY,
+  PRODUCT_CATALOG_QUERY_KEY,
   PRODUCTS_QUERY_KEY,
-  useInactiveProducts,
-  useProducts,
+  useProductCatalog,
 } from '../hooks/useProducts'
+import type { ProductCatalogParams } from '../services/productApi'
 import { ProductEditForm } from './ProductEditForm'
 import styles from './ProductList.module.css'
 
@@ -33,31 +35,48 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 })
 
-function matchesSearch(product: ProductRecord, normalizedSearch: string) {
-  if (!normalizedSearch) {
-    return true
-  }
+const PRODUCT_PAGE_SIZE = 20
 
-  return (
-    product.name.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-    product.barcode.toLocaleLowerCase('pt-BR').includes(normalizedSearch)
-  )
+type ProductListProps = {
+  onScannerRead?: (barcode: string) => void
+  scannerEnabled?: boolean
 }
 
-export function ProductList() {
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  const tagName = target.tagName
+
+  return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || target.isContentEditable
+}
+
+export function ProductList({ onScannerRead, scannerEnabled = true }: ProductListProps) {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [showInactive, setShowInactive] = useState(false)
+  const [page, setPage] = useState(0)
   const [editingProduct, setEditingProduct] = useState<ProductRecord | null>(null)
   const [deactivatingProduct, setDeactivatingProduct] = useState<ProductRecord | null>(null)
   const [reactivatingProduct, setReactivatingProduct] = useState<ProductRecord | null>(null)
   const deactivationLock = useRef(false)
   const reactivationLock = useRef(false)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const { onScan } = useBarcodeScanner()
   const queryClient = useQueryClient()
-  const productsQuery = useProducts()
-  const inactiveProductsQuery = useInactiveProducts(showInactive)
   const categoriesQuery = useCategories(true)
-  const listQuery = showInactive ? inactiveProductsQuery : productsQuery
+  const searchIsReady = search.trim().length > 0 && search === debouncedSearch
+  const catalogParams: ProductCatalogParams = {
+    search: debouncedSearch,
+    active: !showInactive,
+    ...(categoryId ? { categoryId: Number(categoryId) } : {}),
+    page,
+    size: PRODUCT_PAGE_SIZE,
+  }
+  const catalogQuery = useProductCatalog(catalogParams, searchIsReady)
+  const products = catalogQuery.data?.content ?? []
   const updateMutation = useMutation({
     mutationFn: ({
       id,
@@ -71,6 +90,7 @@ export function ProductList() {
       queryClient.setQueryData<ProductRecord[]>(PRODUCTS_QUERY_KEY, (currentProducts) =>
         currentProducts?.map((product) => (product.id === updatedProduct.id ? updatedProduct : product)),
       )
+      void queryClient.invalidateQueries({ queryKey: PRODUCT_CATALOG_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: DASHBOARD_TOP_PRODUCTS_QUERY_KEY })
       if (lowStockDisplayChanged) {
         void queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
@@ -89,6 +109,7 @@ export function ProductList() {
         currentProducts?.filter((product) => product.id !== productId),
       )
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCT_CATALOG_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: INACTIVE_PRODUCTS_QUERY_KEY, exact: true }),
         queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
       ])
@@ -104,8 +125,21 @@ export function ProductList() {
   })
   const reactivateMutation = useMutation({
     mutationFn: (productId: number) => reactivateProduct(productId),
-    onSuccess: async () => {
+    onSuccess: async (reactivatedProduct) => {
+      queryClient.setQueryData<ProductRecord[]>(PRODUCTS_QUERY_KEY, (currentProducts) =>
+        currentProducts
+          ? currentProducts.some((product) => product.id === reactivatedProduct.id)
+            ? currentProducts.map((product) =>
+                product.id === reactivatedProduct.id ? reactivatedProduct : product,
+              )
+            : [...currentProducts, reactivatedProduct]
+          : currentProducts,
+      )
+      queryClient.setQueryData<ProductRecord[]>(INACTIVE_PRODUCTS_QUERY_KEY, (currentProducts) =>
+        currentProducts?.filter((product) => product.id !== reactivatedProduct.id),
+      )
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCT_CATALOG_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
         queryClient.invalidateQueries({ queryKey: INACTIVE_PRODUCTS_QUERY_KEY, exact: true }),
         queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
@@ -120,23 +154,84 @@ export function ProductList() {
       reactivationLock.current = false
     },
   })
-  const normalizedSearch = search.trim().toLocaleLowerCase('pt-BR')
-  const selectedCategoryId = categoryId ? Number(categoryId) : null
-  const filteredProducts = useMemo(
-    () =>
-      (listQuery.data ?? []).filter(
-        (product) =>
-          matchesSearch(product, normalizedSearch) &&
-          (selectedCategoryId === null || product.categoryId === selectedCategoryId),
-      ),
-    [listQuery.data, normalizedSearch, selectedCategoryId],
-  )
-  const filtersApplied = Boolean(normalizedSearch || categoryId)
   const categoriesAvailable = Boolean(categoriesQuery.data?.length)
+  const filtersApplied = Boolean(search.trim() || categoryId)
+
+  const handleScannerRead = useEffectEvent((barcode: string) => {
+    setSearch(barcode)
+    setPage(0)
+    onScannerRead?.(barcode)
+  })
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedSearch(search), 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [search])
+
+  useEffect(() => {
+    if (!scannerEnabled) {
+      return
+    }
+
+    return onScan((barcode) => {
+      handleScannerRead(barcode)
+    })
+  }, [onScan, scannerEnabled])
+
+  useEffect(() => {
+    if (!scannerEnabled) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'F2' ||
+        isTypingTarget(event.target) ||
+        document.querySelector('[role="dialog"]') !== null
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [scannerEnabled])
+
+  useEffect(() => {
+    const totalPages = catalogQuery.data?.totalPages
+    if (catalogQuery.isSuccess && totalPages !== undefined && page >= totalPages) {
+      const timeoutId = window.setTimeout(() => setPage(Math.max(totalPages - 1, 0)), 0)
+      return () => window.clearTimeout(timeoutId)
+    }
+    return undefined
+  }, [catalogQuery.data?.totalPages, catalogQuery.isSuccess, page])
 
   const clearFilters = () => {
     setSearch('')
     setCategoryId('')
+    setPage(0)
+  }
+
+  const changeSearch = (value: string) => {
+    setSearch(value)
+    setPage(0)
+  }
+
+  const changeCategory = (value: string) => {
+    setCategoryId(value)
+    setPage(0)
+  }
+
+  const changeStatus = (inactive: boolean) => {
+    setShowInactive(inactive)
+    setPage(0)
   }
 
   const confirmDeactivation = () => {
@@ -176,7 +271,7 @@ export function ProductList() {
           type="button"
           variant={showInactive ? 'secondary' : 'primary'}
           aria-pressed={!showInactive}
-          onClick={() => setShowInactive(false)}
+          onClick={() => changeStatus(false)}
         >
           Produtos ativos
         </Button>
@@ -184,18 +279,20 @@ export function ProductList() {
           type="button"
           variant={showInactive ? 'primary' : 'secondary'}
           aria-pressed={showInactive}
-          onClick={() => setShowInactive(true)}
+          onClick={() => changeStatus(true)}
         >
           Produtos inativos
         </Button>
       </div>
       <div className={styles.filters} role="search" aria-label="Filtros de produtos">
         <Input
+          ref={searchInputRef}
           label="Buscar produto"
           type="search"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Nome ou código de barras"
+          onChange={(event) => changeSearch(event.target.value)}
+          placeholder="Digite o nome ou leia o código de barras..."
+          className={styles.searchInput}
         />
 
         <div className={styles.categoryField}>
@@ -206,7 +303,7 @@ export function ProductList() {
             id="product-category-filter"
             className={styles.select}
             value={categoryId}
-            onChange={(event) => setCategoryId(event.target.value)}
+            onChange={(event) => changeCategory(event.target.value)}
             disabled={categoriesQuery.isPending || categoriesQuery.isError || !categoriesAvailable}
           >
             <option value="">
@@ -243,102 +340,134 @@ export function ProductList() {
           Limpar filtros
         </Button>
       </div>
-      {listQuery.isPending ? (
-        <p className={styles.status} role="status" aria-busy="true">
-          {showInactive ? 'Carregando produtos inativos...' : 'Carregando produtos...'}
+      {!search.trim() ? (
+        <p className={styles.status} role="status">
+          Digite o nome ou código de barras para buscar produtos.
         </p>
-      ) : listQuery.isError ? (
+      ) : !searchIsReady ? (
+        <p className={styles.status} role="status" aria-busy="true">
+          Atualizando busca...
+        </p>
+      ) : catalogQuery.isPending ? (
+        <p className={styles.status} role="status" aria-busy="true">
+          Buscando produtos...
+        </p>
+      ) : catalogQuery.isError ? (
         <div className={styles.message} role="alert">
-          <span>Não foi possível carregar os produtos {showInactive ? 'inativos' : 'ativos'}.</span>
-          <Button type="button" variant="secondary" onClick={() => void listQuery.refetch()}>
+          <span>Não foi possível carregar os produtos.</span>
+          <Button type="button" variant="secondary" onClick={() => void catalogQuery.refetch()}>
             Tentar novamente
           </Button>
         </div>
-      ) : filteredProducts.length === 0 ? (
+      ) : catalogQuery.data.totalElements === 0 ? (
         <p className={styles.status} role="status">
-          {filtersApplied
-            ? 'Nenhum produto encontrado. Ajuste ou limpe os filtros.'
-            : showInactive
-              ? 'Nenhum produto inativo.'
-              : 'Nenhum produto cadastrado.'}
+          Nenhum produto encontrado. Ajuste os filtros ou tente outra busca.
         </p>
       ) : (
-        <div className={styles.tableWrapper} aria-busy={listQuery.isFetching}>
-          <table className={styles.table}>
-            <caption className={styles.caption}>
-              {filteredProducts.length} {filteredProducts.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Nome</th>
-                <th scope="col">Código de barras</th>
-                <th scope="col">Categoria</th>
-                <th scope="col">Preço</th>
-                <th scope="col">Estoque</th>
-                <th scope="col">Status</th>
-                <th scope="col">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.map((product) => (
-                <tr key={product.id}>
-                  <th scope="row">{product.name}</th>
-                  <td>{product.barcode}</td>
-                  <td>{product.category ?? 'Não informada'}</td>
-                  <td>{currencyFormatter.format(product.price)}</td>
-                  <td>{product.stockQuantity}</td>
-                  <td>
-                    <span className={product.active ? styles.activeBadge : styles.inactiveBadge}>
-                      {product.active ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className={styles.actions}>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        aria-label={`Editar ${product.name}`}
-                        onClick={() => {
-                          updateMutation.reset()
-                          setEditingProduct(product)
-                        }}
-                      >
-                        Editar
-                      </Button>
-                      {product.active ? (
-                        <Button
-                          type="button"
-                          variant="danger"
-                          aria-label={`Desativar ${product.name}`}
-                          disabled={deactivateMutation.isPending}
-                          onClick={() => {
-                            deactivateMutation.reset()
-                            setDeactivatingProduct(product)
-                          }}
-                        >
-                          Desativar
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="success"
-                          aria-label={`Reativar ${product.name}`}
-                          disabled={reactivateMutation.isPending}
-                          onClick={() => {
-                            reactivateMutation.reset()
-                            setReactivatingProduct(product)
-                          }}
-                        >
-                          Reativar
-                        </Button>
-                      )}
-                    </div>
-                  </td>
+        <>
+          <p className={styles.resultCount} role="status">
+            {catalogQuery.data.totalElements}{' '}
+            {catalogQuery.data.totalElements === 1 ? 'produto encontrado' : 'produtos encontrados'}
+          </p>
+          <div className={styles.tableWrapper} aria-busy={catalogQuery.isFetching}>
+            <table className={styles.table}>
+              <caption className={styles.caption}>
+                {catalogQuery.data.totalElements}{' '}
+                {catalogQuery.data.totalElements === 1 ? 'produto encontrado' : 'produtos encontrados'}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Nome</th>
+                  <th scope="col">Código de barras</th>
+                  <th scope="col">Categoria</th>
+                  <th scope="col">Preço</th>
+                  <th scope="col">Estoque</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {products.map((product) => (
+                  <tr key={product.id}>
+                    <th scope="row">{product.name}</th>
+                    <td>{product.barcode}</td>
+                    <td>{product.category ?? 'Não informada'}</td>
+                    <td>{currencyFormatter.format(product.price)}</td>
+                    <td>{product.stockQuantity}</td>
+                    <td>
+                      <span className={product.active ? styles.activeBadge : styles.inactiveBadge}>
+                        {product.active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className={styles.actions}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          aria-label={`Editar ${product.name}`}
+                          onClick={() => {
+                            updateMutation.reset()
+                            setEditingProduct(product)
+                          }}
+                        >
+                          Editar
+                        </Button>
+                        {product.active ? (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            aria-label={`Desativar ${product.name}`}
+                            disabled={deactivateMutation.isPending}
+                            onClick={() => {
+                              deactivateMutation.reset()
+                              setDeactivatingProduct(product)
+                            }}
+                          >
+                            Desativar
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="success"
+                            aria-label={`Reativar ${product.name}`}
+                            disabled={reactivateMutation.isPending}
+                            onClick={() => {
+                              reactivateMutation.reset()
+                              setReactivatingProduct(product)
+                            }}
+                          >
+                            Reativar
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <nav className={styles.pagination} aria-label="Paginação de produtos">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={page === 0 || catalogQuery.isFetching}
+              onClick={() => setPage((currentPage) => Math.max(currentPage - 1, 0))}
+            >
+              Anterior
+            </Button>
+            <span>
+              Página {catalogQuery.data.page + 1} de {catalogQuery.data.totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={page + 1 >= catalogQuery.data.totalPages || catalogQuery.isFetching}
+              onClick={() => setPage((currentPage) => currentPage + 1)}
+            >
+              Próxima
+            </Button>
+          </nav>
+        </>
       )}
 
       {editingProduct ? (

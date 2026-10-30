@@ -111,8 +111,24 @@ function SaleDetails({ saleId }: { saleId: string }) {
             <dt>Quantidade total de itens</dt>
             <dd>{quantityFormatter.format(getTotalItems(sale))}</dd>
           </div>
-          <div>
-            <dt>Total da venda</dt>
+          {sale.subtotal !== undefined ? (
+            <div>
+              <dt>Subtotal</dt>
+              <dd>{currencyFormatter.format(sale.subtotal)}</dd>
+            </div>
+          ) : null}
+          {sale.discountAmount !== undefined ? (
+            <div>
+              <dt>Desconto geral</dt>
+              <dd>
+                {sale.discountAmount > 0
+                  ? `− ${currencyFormatter.format(sale.discountAmount)}`
+                  : currencyFormatter.format(0)}
+              </dd>
+            </div>
+          ) : null}
+          <div className={styles.totalHighlight}>
+            <dt>Total final</dt>
             <dd>{currencyFormatter.format(sale.total)}</dd>
           </div>
           <div>
@@ -133,7 +149,7 @@ function SaleDetails({ saleId }: { saleId: string }) {
                 <tr>
                   <th scope="col">Produto</th>
                   <th scope="col">Quantidade</th>
-                  <th scope="col">Preço unitário</th>
+                  <th scope="col">Preço unitário praticado</th>
                   <th scope="col">Subtotal</th>
                 </tr>
               </thead>
@@ -250,7 +266,7 @@ function SalesList() {
                 <th scope="col">Venda</th>
                 <th scope="col">Data e hora</th>
                 <th scope="col">Itens</th>
-                <th scope="col">Total</th>
+                <th scope="col">Total final</th>
                 <th scope="col">Lucro bruto</th>
                 <th scope="col">Status</th>
                 <th scope="col">Detalhes</th>

@@ -2,27 +2,40 @@
   min-height: 100%;
 }
 
+.card:global(.ui-card) {
+  border-color: color-mix(in srgb, var(--color-border) 72%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-background));
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--color-background) 32%, transparent);
+}
+
 .emptyState {
-  min-height: 240px;
+  min-height: 216px;
   display: grid;
   place-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
+  align-content: center;
+  gap: 10px;
+  padding: 20px;
   text-align: center;
-  border-radius: calc(var(--radius-lg) - 4px);
-  border: 1px dashed color-mix(in srgb, var(--color-border-subtle) 88%, transparent);
-  background: color-mix(in srgb, var(--color-background) 26%, transparent);
+}
+
+.emptyIcon {
+  margin-bottom: 4px;
+  color: color-mix(in srgb, var(--color-text-secondary) 76%, transparent);
 }
 
 .emptyTitle {
   margin: 0;
   font-size: clamp(1.1rem, 1.4vw, 1.25rem);
   font-weight: var(--font-subtitle-weight);
+  color: var(--color-text-primary);
 }
 
 .emptyDescription {
+  max-width: 360px;
   margin: 0;
   color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
 }
 
 .header {
@@ -40,9 +53,26 @@
 
 .body {
   display: grid;
+  max-height: min(58vh, 560px);
+  overflow-y: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+  contain: layout;
 }
 
-@media (max-width: 768px) {
+@media (min-width: 1101px) and (max-width: 1440px) {
+  .header {
+    grid-template-columns:
+      minmax(140px, 1.3fr)
+      minmax(108px, 1fr)
+      minmax(100px, 1fr)
+      minmax(80px, 0.9fr)
+      minmax(92px, auto);
+    gap: 8px;
+  }
+}
+
+@media (max-width: 1100px) {
   .header {
     display: none;
   }

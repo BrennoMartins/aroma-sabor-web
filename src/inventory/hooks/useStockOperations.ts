@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { DASHBOARD_LOW_STOCK_QUERY_KEY } from '../../dashboard/hooks/useDashboardProducts'
-import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
+import { PRODUCT_CATALOG_QUERY_KEY, PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
 import {
   adjustProductStock,
   discardProductStock,
@@ -28,6 +28,7 @@ function useStockMutation<TPayload>(
       )
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: PRODUCT_CATALOG_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: STOCK_MOVEMENTS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
       ])
@@ -60,6 +61,7 @@ export function useDiscardStock() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: PRODUCT_CATALOG_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: STOCK_MOVEMENTS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY }),
       ])

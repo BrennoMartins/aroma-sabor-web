@@ -229,6 +229,52 @@ describe('SalesPage', () => {
     expect(getSalesMock).not.toHaveBeenCalled()
   })
 
+  it('exibe subtotal, desconto geral, total final e o preço negociado nos detalhes', async () => {
+    getSaleByIdMock.mockResolvedValueOnce({
+      ...sales[0],
+      subtotal: 30,
+      discountAmount: 2.5,
+      total: 27.5,
+      grossProfitKnownAmount: -1.25,
+      items: [{ productId: 8, productName: 'Café', quantity: 2, unitPrice: 15, subtotal: 30 }],
+    })
+
+    await render('/sales/41')
+    await waitForText('Desconto geral')
+
+    const text = (document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+    expect(text).toContain('Subtotal')
+    expect(text).toContain('R$ 30,00')
+    expect(text).toContain('− R$ 2,50')
+    expect(text).toContain('Total final')
+    expect(text).toContain('R$ 27,50')
+    expect(text).toContain('R$ 15,00')
+    expect(text).toContain('-R$ 1,25')
+  })
+
+  it('exibe desconto zero em venda sem desconto', async () => {
+    getSaleByIdMock.mockResolvedValueOnce({ ...sales[0], subtotal: 29.98, discountAmount: 0 })
+
+    await render('/sales/41')
+    await waitForText('Desconto geral')
+
+    expect(document.body.textContent).toContain('Desconto geral')
+    expect((document.body.textContent ?? '').replace(/\u00a0/g, ' ')).toContain('R$ 0,00')
+  })
+
+  it('não inventa subtotal nem desconto para respostas antigas', async () => {
+    getSaleByIdMock.mockResolvedValueOnce(sales[0])
+
+    await render('/sales/41')
+    await waitForText('Total final')
+
+    const text = (document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+    const labels = [...document.querySelectorAll('dt')].map((dt) => dt.textContent)
+    expect(labels).not.toContain('Subtotal')
+    expect(text).not.toContain('Desconto geral')
+    expect(text).toContain('R$ 29,98')
+  })
+
   it('trata erro ao carregar detalhes e disponibiliza volta ao histórico', async () => {
     getSaleByIdMock.mockRejectedValueOnce(new Error('network error'))
 

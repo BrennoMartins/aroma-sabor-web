@@ -16,6 +16,28 @@
   gap: var(--space-md);
 }
 
+.searchInput {
+  min-height: 52px;
+  font-size: var(--font-body-size);
+}
+
+.resultCount {
+  margin: var(--space-md) 0;
+  color: var(--color-text-secondary);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.pagination > span {
+  color: var(--color-text-secondary);
+}
+
 .categoryField {
   display: grid;
   gap: var(--space-xs);
@@ -136,6 +158,10 @@
 
   .filters > button {
     justify-self: start;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
   }
 
   .table {

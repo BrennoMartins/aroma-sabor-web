@@ -131,6 +131,25 @@ describe('DashboardPage', () => {
     expect(document.body.textContent).toContain('2 item(ns) sem custo histórico')
   })
 
+  it('shows net revenue as returned and does not subtract discounts again, allowing negative profit', async () => {
+    getDashboardSummaryMock.mockResolvedValueOnce({
+      ...openTurnSummary,
+      revenue: 90,
+      grossProfitKnownAmount: -3.5,
+      grossProfitComplete: false,
+      itemsWithoutHistoricalCost: 1,
+    })
+
+    await render()
+    await waitForText('Faturamento líquido do dia')
+
+    const text = (document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+    expect(text).toContain('R$ 90,00')
+    expect(text).toContain('Incompleto')
+    expect(text).toContain('-R$ 3,50')
+    expect(text).toContain('1 item(ns) sem custo histórico')
+  })
+
   it('shows the current turn, opening time, recent sales and existing workflow links', async () => {
     getDashboardSummaryMock.mockResolvedValueOnce(openTurnSummary)
 
@@ -173,7 +192,7 @@ describe('DashboardPage', () => {
     await render()
 
     expect(document.body.textContent).toContain('Carregando indicadores do dia')
-    expect(document.body.textContent).not.toContain('Faturamento do dia')
+    expect(document.body.textContent).not.toContain('Faturamento líquido do dia')
   })
 
   it('shows an error and retries the request when asked', async () => {
@@ -332,7 +351,7 @@ describe('DashboardPage', () => {
     await waitForText('Não foi possível carregar os produtos com estoque baixo.')
 
     expect(container.textContent).toContain('Café')
-    expect(container.textContent).toContain('Faturamento do dia')
+    expect(container.textContent).toContain('Faturamento líquido do dia')
     expect(container.textContent).toContain('Venda #104')
 
     const retryButton = [...container.querySelectorAll('button')]

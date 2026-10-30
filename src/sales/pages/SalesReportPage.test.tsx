@@ -146,7 +146,7 @@ describe('SalesReportPage', () => {
     setDate('startDate', '2026-10-01')
     setDate('endDate', '2026-10-03')
     await submitPeriod()
-    await waitForText('Receita total')
+    await waitForText('Receita líquida total')
 
     expect(getSalesReportMock).toHaveBeenCalledWith('2026-10-01', '2026-10-03')
   })
@@ -178,6 +178,28 @@ describe('SalesReportPage', () => {
     ])
     expect(days[1].textContent).toContain(currency.format(0))
     expect(days[1].textContent).toContain('0')
+  })
+
+  it('shows net revenue, negative incomplete profit and no extra discount subtraction', async () => {
+    getSalesReportMock.mockResolvedValueOnce({
+      ...report,
+      totalRevenue: 500,
+      grossProfitKnownAmount: -12.4,
+      grossProfitComplete: false,
+      itemsWithoutHistoricalCost: 3,
+    })
+    await render()
+
+    setDate('startDate', '2026-10-01')
+    setDate('endDate', '2026-10-03')
+    await submitPeriod()
+    await waitForText('Receita líquida total')
+
+    const text = (document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+    expect(text).toContain('R$ 500,00')
+    expect(text).toContain('Incompleto')
+    expect(text).toContain('-R$ 12,40')
+    expect(text).toContain('3 item(ns) sem custo histórico no período')
   })
 
   it('shows a clear no-sales state while retaining zero-valued daily entries', async () => {

@@ -75,65 +75,90 @@ export function CategoryPage() {
   }
 
   return (
-    <Card title="Categorias" className="page-section">
-      <form
-        className={styles.form}
-        onSubmit={(event) => {
-          void handleSubmit(submitCategory)(event)
-        }}
-        noValidate
-      >
-        <Input
-          label="Nome da categoria"
-          maxLength={100}
-          autoComplete="off"
-          disabled={createMutation.isPending}
-          {...register('name')}
-          error={errors.name?.message}
-        />
-        <Button type="submit" loading={createMutation.isPending} disabled={createMutation.isPending}>
-          Cadastrar categoria
-        </Button>
-      </form>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div className={styles.titleRow}>
+          <h1 className={styles.title}>Categorias</h1>
+          {categoriesQuery.data ? (
+            <span className={styles.count}>
+              {categoriesQuery.data.length} {categoriesQuery.data.length === 1 ? 'categoria' : 'categorias'}
+            </span>
+          ) : null}
+        </div>
+        <p className={styles.description}>Organize os produtos do seu catálogo.</p>
+      </header>
 
-      {errorMessage ? (
-        <p className={styles.message} role="alert">
-          {errorMessage}
-        </p>
-      ) : null}
-      {successMessage ? (
-        <p className={styles.message} role="status">
-          {successMessage}
-        </p>
-      ) : null}
+      <Card className={styles.card}>
+        <div className={styles.cardHeader}>
+          <h2 className={styles.heading}>Nova categoria</h2>
+          <p className={styles.description}>Cadastre uma nova categoria para organizar seus produtos.</p>
+        </div>
 
-      <section className={styles.list} aria-labelledby="category-list-heading">
-        <h2 id="category-list-heading" className={styles.heading}>
-          Categorias cadastradas
-        </h2>
-        {categoriesQuery.isPending ? (
-          <p className={styles.message} role="status" aria-busy="true">
-            Carregando categorias...
+        <form
+          className={styles.form}
+          onSubmit={(event) => {
+            void handleSubmit(submitCategory)(event)
+          }}
+          noValidate
+        >
+          <Input
+            label="Nome da categoria"
+            placeholder="Ex.: Mercearia"
+            maxLength={100}
+            autoComplete="off"
+            disabled={createMutation.isPending}
+            {...register('name')}
+            error={errors.name?.message}
+          />
+          <Button type="submit" loading={createMutation.isPending} disabled={createMutation.isPending}>
+            Cadastrar categoria
+          </Button>
+        </form>
+
+        {errorMessage ? (
+          <p className={styles.message} role="alert">
+            {errorMessage}
           </p>
-        ) : categoriesQuery.isError ? (
-          <div className={styles.message} role="alert">
-            <span>Não foi possível carregar as categorias.</span>
-            <Button type="button" variant="secondary" onClick={() => void categoriesQuery.refetch()}>
-              Tentar novamente
-            </Button>
-          </div>
-        ) : categoriesQuery.data.length === 0 ? (
+        ) : null}
+        {successMessage ? (
           <p className={styles.message} role="status">
-            Nenhuma categoria cadastrada.
+            {successMessage}
           </p>
-        ) : (
-          <ul className={styles.categories}>
-            {categoriesQuery.data.map((category) => (
-              <li key={category.id}>{category.name}</li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </Card>
+        ) : null}
+      </Card>
+
+      <Card className={styles.card}>
+        <section className={styles.list} aria-labelledby="category-list-heading">
+          <div className={styles.sectionHeader}>
+            <h2 id="category-list-heading" className={styles.heading}>
+              Categorias cadastradas
+            </h2>
+            <p className={styles.description}>Gerencie as categorias disponíveis no sistema.</p>
+          </div>
+          {categoriesQuery.isPending ? (
+            <p className={styles.message} role="status" aria-busy="true">
+              Carregando categorias...
+            </p>
+          ) : categoriesQuery.isError ? (
+            <div className={styles.message} role="alert">
+              <span>Não foi possível carregar as categorias.</span>
+              <Button type="button" variant="secondary" onClick={() => void categoriesQuery.refetch()}>
+                Tentar novamente
+              </Button>
+            </div>
+          ) : categoriesQuery.data.length === 0 ? (
+            <p className={styles.emptyState} role="status">
+              Nenhuma categoria cadastrada.
+            </p>
+          ) : (
+            <ul className={styles.categories}>
+              {categoriesQuery.data.map((category) => (
+                <li key={category.id}>{category.name}</li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </Card>
+    </div>
   )
 }
