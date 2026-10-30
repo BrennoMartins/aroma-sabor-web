@@ -24,6 +24,22 @@ export type CreateProductRequest = {
 
 export type UpdateProductRequest = Omit<CreateProductRequest, 'stock'>
 
+export type ProductCatalogParams = {
+  search: string
+  active: boolean
+  categoryId?: number
+  page: number
+  size: number
+}
+
+export type ProductCatalogResponse = {
+  content: ProductRecord[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export type StockReplenishmentRequest = {
   quantity: number
   reason?: string
@@ -92,6 +108,21 @@ export async function getInactiveProducts() {
   const response = await api.get<ProductResponse[]>('/products/inactive')
 
   return response.data.map(mapProductResponse)
+}
+
+export async function getProductCatalog(params: ProductCatalogParams, signal?: AbortSignal) {
+  const response = await api.get<Omit<ProductCatalogResponse, 'content'> & { content: ProductResponse[] }>(
+    '/products/catalog',
+    {
+      params,
+      signal,
+    },
+  )
+
+  return {
+    ...response.data,
+    content: response.data.content.map(mapProductResponse),
+  }
 }
 
 export async function getProductByBarcode(barcode: string) {

@@ -23,7 +23,7 @@ import { OpenMarketModal } from '../../turn/components/OpenMarketModal'
 import { useMarketSession } from '../../turn/hooks/useMarketSession'
 import { turnSummaryQueryKey } from '../../turn/hooks/useTurnSummary'
 import { getTurnErrorMessage } from '../../turn/services/turnErrorMessage'
-import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
+import { PRODUCT_CATALOG_QUERY_KEY, PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
 import { SALES_QUERY_KEY } from '../../sales/hooks/useSalesHistory'
 import { STOCK_MOVEMENTS_QUERY_KEY } from '../../inventory/hooks/useStockMovements'
 import { DASHBOARD_QUERY_KEY } from '../../dashboard/hooks/useDashboardSummary'
@@ -195,6 +195,7 @@ export function CaixaPage() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: PRODUCT_CATALOG_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: STOCK_MOVEMENTS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: SALES_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: turnSummaryQueryKey(currentTurn?.id) }),

@@ -1,3 +1,4 @@
+import { ShoppingBasket } from 'lucide-react'
 import type { CartItem } from '../hooks/useCart'
 import { CartItem as CartItemRow } from './CartItem'
 import { Card } from '../../shared/components/Card/Card'
@@ -16,8 +17,11 @@ export function CartTable({ items, onIncrement, onDecrement, onRemove, onEditPri
     return (
       <Card title="Carrinho" className={styles.card}>
         <div className={styles.emptyState}>
+          <ShoppingBasket className={styles.emptyIcon} size={30} aria-hidden="true" />
           <p className={styles.emptyTitle}>Carrinho vazio</p>
-          <p className={styles.emptyDescription}>Adicione produtos para iniciar a venda.</p>
+          <p className={styles.emptyDescription}>
+            Pressione F2 para adicionar um produto ou use o leitor de código de barras.
+          </p>
         </div>
       </Card>
     )
@@ -33,7 +37,7 @@ export function CartTable({ items, onIncrement, onDecrement, onRemove, onEditPri
         <span>Acoes</span>
       </div>
 
-      <div className={styles.body}>
+      <div className={styles.body} role="rowgroup">
         {items.map((item) => (
           <CartItemRow
             key={item.productId}

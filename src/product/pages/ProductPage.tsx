@@ -1,91 +1,127 @@
-import type { FormEvent } from 'react'
-import { Button } from '../../shared/components/Button/Button'
-import { Card } from '../../shared/components/Card/Card'
-import { Input } from '../../shared/components/Input/Input'
-import { EmptyState } from '../components/EmptyState'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { CategoryPage } from '../../category/pages/CategoryPage'
 import { ProductList } from '../components/ProductList'
 import { ProductForm } from '../components/ProductForm'
 import { StockRestockModal } from '../components/StockRestockModal'
 import { useSmartProductRegistration } from '../hooks/useSmartProductRegistration'
+import styles from './ProductPage.module.css'
 
 export function ProductPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabValues = searchParams.getAll('tab')
+  const activeTab = tabValues.length === 1 && tabValues[0] === 'categories' ? 'categories' : 'products'
+  const hasInvalidTab = tabValues.length > 0 && activeTab !== 'categories'
   const {
     activeModal,
     registrationBarcode,
     selectedProduct,
-    manualBarcode,
-    setManualBarcode,
-    runManualSearch,
-    manualSearchInputRef,
-    feedback,
-    isCheckingProduct,
     isSavingProduct,
+    processScannedBarcode,
     submitNewProduct,
     closeAllModals,
-  } = useSmartProductRegistration()
+  } = useSmartProductRegistration(activeTab === 'products')
 
-  const panelClassName =
-    feedback === 'found'
-      ? 'smart-product smart-product--found'
-      : feedback === 'new'
-        ? 'smart-product smart-product--new'
-        : feedback === 'error'
-          ? 'smart-product smart-product--error'
-          : 'smart-product'
+  useEffect(() => {
+    if (!hasInvalidTab) {
+      return
+    }
 
-  const handleManualSubmit = (event: FormEvent<HTMLFormElement>) => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+      nextParams.delete('tab')
+      return nextParams
+    }, { replace: true })
+  }, [hasInvalidTab, setSearchParams])
+
+  useEffect(() => {
+    if (activeTab === 'categories') {
+      closeAllModals()
+    }
+  }, [activeTab, closeAllModals])
+
+  const selectTab = (tab: 'products' | 'categories') => {
+    if (tab === activeTab) {
+      return
+    }
+
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+
+      if (tab === 'categories') {
+        nextParams.set('tab', 'categories')
+      } else {
+        nextParams.delete('tab')
+      }
+
+      return nextParams
+    })
+  }
+
+  const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      return
+    }
+
     event.preventDefault()
-    runManualSearch()
+    const currentTab = event.currentTarget.id === 'products-tab' ? 'products' : 'categories'
+    const nextTab = event.key === 'Home'
+      ? 'products'
+      : event.key === 'End'
+        ? 'categories'
+        : currentTab === 'products'
+          ? 'categories'
+          : 'products'
+    const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    const nextTabIndex = nextTab === 'products' ? 0 : 1
+    tabs?.[nextTabIndex]?.focus()
+    selectTab(nextTab)
   }
 
   return (
-    <>
-      <ProductList />
-      <section className={panelClassName}>
-        <div className="smart-product__header">
-          <h2 className="page-card__title">Cadastro inteligente de produtos</h2>
-          <p className="page-card__description">
-            Escaneie um codigo de barras para abrir automaticamente reposicao ou cadastro de produto novo.
-          </p>
-        </div>
+    <div className={styles.page}>
+      <div className={styles.tabs} role="tablist" aria-label="Gerenciamento de produtos">
+        <button
+          id="products-tab"
+          className={styles.tab}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'products'}
+          aria-controls="products-panel"
+          tabIndex={activeTab === 'products' ? 0 : -1}
+          onClick={() => selectTab('products')}
+          onKeyDown={handleTabKeyDown}
+        >
+          Produtos
+        </button>
+        <button
+          id="categories-tab"
+          className={styles.tab}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'categories'}
+          aria-controls="categories-panel"
+          tabIndex={activeTab === 'categories' ? 0 : -1}
+          onClick={() => selectTab('categories')}
+          onKeyDown={handleTabKeyDown}
+        >
+          Categorias
+        </button>
+      </div>
 
-        <div className="smart-product__grid">
-          <Card className="smart-product__manual" title="Busca manual">
-            <form className="smart-product__manual-form" onSubmit={handleManualSubmit}>
-              <Input
-                ref={manualSearchInputRef}
-                label="Codigo de barras (F2)"
-                value={manualBarcode}
-                onChange={(event) => setManualBarcode(event.target.value)}
-                placeholder="Bipe ou digite o codigo"
-              />
-
-              <Button type="submit" loading={isCheckingProduct}>
-                Buscar produto
-              </Button>
-            </form>
-
-            <div className="shortcut-list smart-product__shortcuts">
-              <div className="shortcut-list__item">
-                <span>ESC</span>
-                <strong>Fechar modal</strong>
-              </div>
-              <div className="shortcut-list__item">
-                <span>Enter</span>
-                <strong>Salvar formulario</strong>
-              </div>
-              <div className="shortcut-list__item">
-                <span>F2</span>
-                <strong>Focar busca manual</strong>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="smart-product__state" title="Fluxo de leitura">
-            {isCheckingProduct ? <p className="inline-status">Consultando produto por codigo...</p> : <EmptyState />}
-          </Card>
-        </div>
-
+      <section
+        id="products-panel"
+        className={styles.panel}
+        role="tabpanel"
+        aria-labelledby="products-tab"
+        hidden={activeTab !== 'products'}
+        tabIndex={0}
+      >
+        <ProductList
+          onScannerRead={processScannedBarcode}
+          scannerEnabled={activeTab === 'products'}
+        />
         <ProductForm
           open={activeModal === 'register'}
           barcode={registrationBarcode}
@@ -101,6 +137,17 @@ export function ProductPage() {
           onClose={closeAllModals}
         />
       </section>
-    </>
+
+      <section
+        id="categories-panel"
+        className={styles.panel}
+        role="tabpanel"
+        aria-labelledby="categories-tab"
+        hidden={activeTab !== 'categories'}
+        tabIndex={0}
+      >
+        <CategoryPage />
+      </section>
+    </div>
   )
 }

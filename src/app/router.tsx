@@ -1,6 +1,5 @@
-import { useRoutes } from 'react-router-dom'
+import { Navigate, useRoutes } from 'react-router-dom'
 import { CaixaPage } from '../caixa/pages/CaixaPage'
-import { CategoryPage } from '../category/pages/CategoryPage'
 import { DashboardPage } from '../dashboard/pages/DashboardPage'
 import { InventoryPage } from '../inventory/pages/InventoryPage'
 import { DiscardsPage } from '../inventory/pages/DiscardsPage'
@@ -29,7 +28,7 @@ export function AppRouter() {
         },
         {
           path: 'categories',
-          element: <CategoryPage />,
+          element: <Navigate to="/products?tab=categories" replace />,
         },
         {
           path: 'inventory',

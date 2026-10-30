@@ -46,6 +46,14 @@
   background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface-secondary));
 }
 
+.result[aria-current='true'],
+.result:focus-visible {
+  border-width: 2px;
+  padding: 11px;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .result:disabled {
   opacity: 0.6;
   cursor: not-allowed;

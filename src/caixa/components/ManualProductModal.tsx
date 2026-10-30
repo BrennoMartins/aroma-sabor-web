@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { Button } from '../../shared/components/Button/Button'
@@ -52,9 +52,12 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [activeResultIndex, setActiveResultIndex] = useState(-1)
   const [quantity, setQuantity] = useState('1')
   const [isAdding, setIsAdding] = useState(false)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const resultsRef = useRef<HTMLUListElement | null>(null)
+  const quantityInputRef = useRef<HTMLInputElement | null>(null)
   const isAddingRef = useRef(false)
 
   useEffect(() => {
@@ -100,6 +103,12 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
     enabled: debouncedSearch.length >= 2,
   })
 
+  useEffect(() => {
+    if (selectedProduct) {
+      quantityInputRef.current?.focus()
+    }
+  }, [selectedProduct])
+
   const parsedQuantity = Number(quantity)
   const quantityError =
     quantity.trim() === '' || !Number.isInteger(parsedQuantity) || parsedQuantity <= 0
@@ -124,6 +133,53 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
 
     isAddingRef.current = false
     setIsAdding(false)
+  }
+
+  const handleSelectProduct = (product: Product) => {
+    if (selectedProduct?.id !== product.id) {
+      setQuantity('1')
+    }
+
+    setSelectedProduct(product)
+  }
+
+  const handleResultKeyDown = (
+    event: ReactKeyboardEvent<HTMLInputElement | HTMLButtonElement>,
+  ) => {
+    const products = searchQuery.data ?? []
+
+    if (event.key === 'Enter' && event.currentTarget instanceof HTMLButtonElement) {
+      event.preventDefault()
+      const productIndex = Number(event.currentTarget.dataset.resultIndex)
+      const product = products[productIndex]
+
+      if (product && product.active !== false) {
+        handleSelectProduct(product)
+      }
+
+      return
+    }
+
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+      return
+    }
+
+    if (isWaitingForDebounce || searchQuery.isFetching || products.length === 0) {
+      return
+    }
+
+    event.preventDefault()
+    const currentIndex = event.currentTarget.dataset.resultIndex === undefined
+      ? activeResultIndex
+      : Number(event.currentTarget.dataset.resultIndex)
+    const direction = event.key === 'ArrowDown' ? 1 : -1
+    const nextIndex = Math.max(0, Math.min(products.length - 1, currentIndex + direction))
+    const resultButton = resultsRef.current?.querySelectorAll<HTMLButtonElement>(
+      '[data-result-index]',
+    )[nextIndex]
+
+    setActiveResultIndex(nextIndex)
+    resultButton?.focus()
   }
 
   const isWaitingForDebounce = search.trim() !== debouncedSearch
@@ -154,8 +210,10 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
           onChange={(event) => {
             setSearch(event.target.value)
             setSelectedProduct(null)
+            setActiveResultIndex(-1)
             setQuantity('1')
           }}
+          onKeyDown={handleResultKeyDown}
         />
 
         {search.trim().length < 2 ? (
@@ -169,8 +227,8 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
             {getProductLookupErrorMessage(searchQuery.error)}
           </p>
         ) : searchQuery.data?.length ? (
-          <ul className={styles.results} aria-label="Produtos encontrados">
-            {searchQuery.data.map((product) => {
+          <ul ref={resultsRef} className={styles.results} aria-label="Produtos encontrados">
+            {searchQuery.data.map((product, index) => {
               const availability = getAvailabilityLabel(product, cartItems)
 
               return (
@@ -178,9 +236,13 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
                   <button
                     type="button"
                     className={styles.result}
+                    data-result-index={index}
                     aria-pressed={selectedProduct?.id === product.id}
+                    aria-current={activeResultIndex === index ? 'true' : undefined}
                     disabled={product.active === false}
-                    onClick={() => setSelectedProduct(product)}
+                    onFocus={() => setActiveResultIndex(index)}
+                    onKeyDown={handleResultKeyDown}
+                    onClick={() => handleSelectProduct(product)}
                   >
                     <span className={styles.productDetails}>
                       <strong>{product.name}</strong>
@@ -200,9 +262,10 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
         {selectedProduct ? (
           <div className={styles.selection}>
             <p>
-              Selecionado: <strong>{selectedProduct.name}</strong>
+              <span role="status">Selecionado: <strong>{selectedProduct.name}</strong></span>
             </p>
             <Input
+              ref={quantityInputRef}
               label="Quantidade"
               name="manualQuantity"
               type="number"
@@ -212,6 +275,13 @@ export function ManualProductModal({ cartItems, onAdd, onClose }: ManualProductM
               value={quantity}
               error={addError ?? undefined}
               onChange={(event) => setQuantity(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  handleAdd()
+                }
+              }}
             />
           </div>
         ) : null}

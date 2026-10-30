@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useBarcodeScanner } from '../../scanner/useBarcodeScanner'
 import { DASHBOARD_LOW_STOCK_QUERY_KEY } from '../../dashboard/hooks/useDashboardProducts'
 import { toast } from '../../shared/components/Toast/toast-store'
 import {
@@ -76,17 +75,16 @@ function normalizeBarcode(value: string) {
   return value.trim()
 }
 
-export function useSmartProductRegistration() {
+export function useSmartProductRegistration(enabled = true) {
   const queryClient = useQueryClient()
-  const { onScan } = useBarcodeScanner()
   const [activeModal, setActiveModal] = useState<'none' | 'register' | 'restock'>('none')
   const [registrationBarcode, setRegistrationBarcode] = useState<string | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<ProductRecord | null>(null)
-  const [manualBarcode, setManualBarcode] = useState('')
   const [feedback, setFeedback] = useState<SmartRegistrationFeedback>('idle')
+  const activeModalRef = useRef<'none' | 'register' | 'restock'>('none')
+  const lookupPendingRef = useRef(false)
   const feedbackTimeoutRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
-  const manualSearchInputRef = useRef<HTMLInputElement | null>(null)
 
   const triggerFeedback = useCallback((variant: SmartRegistrationFeedback) => {
     setFeedback(variant)
@@ -115,6 +113,7 @@ export function useSmartProductRegistration() {
   }, [])
 
   const closeAllModals = useCallback(() => {
+    activeModalRef.current = 'none'
     setActiveModal('none')
     setSelectedProduct(null)
     setRegistrationBarcode(null)
@@ -134,6 +133,7 @@ export function useSmartProductRegistration() {
     },
     onSuccess: (product, barcode) => {
       if (product) {
+        activeModalRef.current = 'restock'
         setSelectedProduct(product)
         setRegistrationBarcode(null)
         setActiveModal('restock')
@@ -143,6 +143,7 @@ export function useSmartProductRegistration() {
       }
 
       setSelectedProduct(null)
+      activeModalRef.current = 'register'
       setRegistrationBarcode(barcode)
       setActiveModal('register')
       triggerFeedback('new')
@@ -152,6 +153,9 @@ export function useSmartProductRegistration() {
       triggerFeedback('error')
       toast.error('Nao foi possivel consultar o produto pelo codigo de barras.')
     },
+    onSettled: () => {
+      lookupPendingRef.current = false
+    },
   })
 
   const createProductMutation = useMutation({
@@ -159,7 +163,6 @@ export function useSmartProductRegistration() {
     onSuccess: async (createdProduct) => {
       toast.success(`${createdProduct.name} cadastrado com sucesso.`)
       closeAllModals()
-      setManualBarcode('')
       triggerFeedback('found')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY }),
@@ -172,69 +175,46 @@ export function useSmartProductRegistration() {
     },
   })
 
-  const processBarcode = useCallback((rawBarcode: string) => {
+  const processScannedBarcode = useCallback((rawBarcode: string) => {
     const barcode = normalizeBarcode(rawBarcode)
 
     if (!barcode) {
       return
     }
 
-    if (activeModal !== 'none' || lookupProductMutation.isPending || createProductMutation.isPending) {
+    if (
+      activeModalRef.current !== 'none' ||
+      lookupPendingRef.current ||
+      lookupProductMutation.isPending ||
+      createProductMutation.isPending
+    ) {
       return
     }
 
-    setManualBarcode(barcode)
+    lookupPendingRef.current = true
     lookupProductMutation.mutate(barcode)
-  }, [activeModal, createProductMutation.isPending, lookupProductMutation])
+  }, [createProductMutation.isPending, lookupProductMutation])
 
   const submitNewProduct = useCallback((payload: CreateProductRequest) => {
     createProductMutation.mutate(payload)
   }, [createProductMutation])
 
-  const runManualSearch = useCallback(() => {
-    processBarcode(manualBarcode)
-  }, [manualBarcode, processBarcode])
-
-  const focusManualSearch = useCallback(() => {
-    manualSearchInputRef.current?.focus()
-    manualSearchInputRef.current?.select()
-  }, [])
-
   useEffect(() => {
-    const unsubscribe = onScan((barcode) => {
-      processBarcode(barcode)
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [onScan, processBarcode])
-
-  useEffect(() => {
-    const shortcutHandlers: Record<string, () => void> = {
-      F2: () => {
-        focusManualSearch()
-      },
-      Escape: () => {
-        if (activeModal !== 'none') {
-          closeAllModals()
-        }
-      },
+    if (!enabled) {
+      return
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const handler = shortcutHandlers[event.key]
-
-      if (!handler) {
+      if (event.key !== 'Escape' || activeModal === 'none') {
         return
       }
 
-      if (event.key !== 'F2' && isTypingTarget(event.target)) {
+      if (isTypingTarget(event.target)) {
         return
       }
 
       event.preventDefault()
-      handler()
+      closeAllModals()
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -242,7 +222,7 @@ export function useSmartProductRegistration() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [activeModal, closeAllModals, focusManualSearch])
+  }, [activeModal, closeAllModals, enabled])
 
   useEffect(() => {
     const audioContext = audioContextRef.current
@@ -262,14 +242,10 @@ export function useSmartProductRegistration() {
     activeModal,
     registrationBarcode,
     selectedProduct,
-    manualBarcode,
-    setManualBarcode,
-    runManualSearch,
-    focusManualSearch,
-    manualSearchInputRef,
     feedback,
     isCheckingProduct: lookupProductMutation.isPending,
     isSavingProduct: createProductMutation.isPending,
+    processScannedBarcode,
     submitNewProduct,
     closeAllModals,
   }

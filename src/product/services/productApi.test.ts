@@ -5,6 +5,7 @@ import {
   discardProductStock,
   deactivateProduct,
   getInactiveProducts,
+  getProductCatalog,
   getProductById,
   getProducts,
   reactivateProduct,
@@ -56,6 +57,60 @@ describe('getProducts', () => {
       },
     ])
     expect(api.get).toHaveBeenCalledWith('/products')
+  })
+})
+
+describe('getProductCatalog', () => {
+  beforeEach(() => {
+    vi.mocked(api.get).mockReset()
+  })
+
+  it('envia os parâmetros paginados e mapeia produtos sem converter o termo de busca', async () => {
+    const signal = new AbortController().signal
+    const params = {
+      search: '0007891000001',
+      active: false,
+      categoryId: 23,
+      page: 2,
+      size: 20,
+    }
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: {
+        content: [{
+          id: 17,
+          name: 'Café',
+          barcode: '0007891000001',
+          category: { id: 23, name: 'Mercearia' },
+          price: 18.5,
+          costPrice: 7.25,
+          stock: 12,
+          active: false,
+        }],
+        page: 2,
+        size: 20,
+        totalElements: 41,
+        totalPages: 3,
+      },
+    })
+
+    await expect(getProductCatalog(params, signal)).resolves.toEqual({
+      content: [{
+        id: 17,
+        name: 'Café',
+        barcode: '0007891000001',
+        categoryId: 23,
+        category: 'Mercearia',
+        price: 18.5,
+        costPrice: 7.25,
+        stockQuantity: 12,
+        active: false,
+      }],
+      page: 2,
+      size: 20,
+      totalElements: 41,
+      totalPages: 3,
+    })
+    expect(api.get).toHaveBeenCalledWith('/products/catalog', { params, signal })
   })
 })
 

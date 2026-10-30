@@ -20,39 +20,39 @@ export function TotalPanel({ subtotal, discountAmount, total, totalItems }: Tota
     <Card title="Resumo da venda" className={styles.card}>
       <div className={styles.metric}>
         <span className={styles.label}>Subtotal</span>
-        <strong className={styles.count}>{formatCurrency(subtotal)}</strong>
+        <strong className={styles.value}>{formatCurrency(subtotal)}</strong>
       </div>
 
       <div className={styles.metric}>
         <span className={styles.label}>Desconto</span>
-        <strong className={styles.count}>- {formatCurrency(discountAmount)}</strong>
+        <strong className={styles.value}>- {formatCurrency(discountAmount)}</strong>
       </div>
 
-      <div className={styles.metric}>
+      <div className={`${styles.metric} ${styles.totalMetric}`}>
         <span className={styles.label}>Total</span>
-        <strong className={styles.amount}>{formatCurrency(total)}</strong>
+        <strong className={styles.amount} aria-live="polite">{formatCurrency(total)}</strong>
       </div>
 
-      <div className={styles.metric}>
+      <div className={`${styles.metric} ${styles.itemsMetric}`}>
         <span className={styles.label}>Itens</span>
         <strong className={styles.count}>{totalItems}</strong>
       </div>
 
       <div className={styles.shortcutList}>
         <div className={styles.shortcutItem}>
-          <span>F2</span>
+          <kbd className={styles.shortcutKey}>F2</kbd>
           <strong>Adicionar produto</strong>
         </div>
         <div className={styles.shortcutItem}>
-          <span>F8</span>
+          <kbd className={styles.shortcutKey}>F8</kbd>
           <strong>Desconto</strong>
         </div>
         <div className={styles.shortcutItem}>
-          <span>F9</span>
+          <kbd className={styles.shortcutKey}>F9</kbd>
           <strong>Finalizar</strong>
         </div>
         <div className={styles.shortcutItem}>
-          <span>ESC</span>
+          <kbd className={styles.shortcutKey}>ESC</kbd>
           <strong>Cancelar</strong>
         </div>
       </div>
