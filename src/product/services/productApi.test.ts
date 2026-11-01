@@ -236,7 +236,7 @@ describe('deactivateProduct', () => {
     })
 
     it('envia o contrato de reposição sem alterar localmente o saldo', async () => {
-      const payload = { quantity: 5, reason: 'Nota fiscal 31' }
+      const payload = { quantity: 5, unitCostPrice: 8.5, reason: 'Nota fiscal 31' }
       vi.mocked(api.post).mockResolvedValueOnce({
         data: {
           id: 17,

@@ -6,10 +6,16 @@ import { isAxiosError } from 'axios'
 import { z } from 'zod'
 import { Card } from '../../shared/components/Card/Card'
 import { Button } from '../../shared/components/Button/Button'
+import { ConfirmDialog } from '../../shared/components/ConfirmDialog/ConfirmDialog'
 import { Input } from '../../shared/components/Input/Input'
+import { toast } from '../../shared/components/Toast/toast-store'
+import { PRODUCTS_QUERY_KEY } from '../../product/hooks/useProducts'
 import { CATEGORIES_QUERY_KEY, useCategories } from '../hooks/useCategories'
-import { createCategory } from '../services/categoryApi'
+import { createCategory, deleteCategory, type CategoryRecord } from '../services/categoryApi'
 import styles from './CategoryPage.module.css'
+
+const CATEGORY_HAS_PRODUCTS_MESSAGE =
+  'Esta categoria possui produtos vinculados e não pode ser excluída.'
 
 const categorySchema = z.object({
   name: z.string().trim().min(1, 'Informe o nome da categoria.').max(100, 'Use no máximo 100 caracteres.'),
@@ -31,12 +37,31 @@ function getCreateErrorMessage(error: unknown) {
   return 'Não foi possível cadastrar a categoria. Verifique a conexão e tente novamente.'
 }
 
+function getDeleteErrorMessage(error: unknown) {
+  if (isAxiosError<{ message?: unknown }>(error)) {
+    if (error.response?.status === 409) {
+      const message = error.response.data?.message
+      return typeof message === 'string' && message === CATEGORY_HAS_PRODUCTS_MESSAGE
+        ? message
+        : CATEGORY_HAS_PRODUCTS_MESSAGE
+    }
+
+    if (error.response?.status === 404) {
+      return 'Esta categoria não está mais disponível. A lista foi atualizada.'
+    }
+  }
+
+  return 'Não foi possível excluir a categoria. Verifique a conexão e tente novamente.'
+}
+
 export function CategoryPage() {
   const queryClient = useQueryClient()
   const categoriesQuery = useCategories(true)
   const submitLock = useRef(false)
+  const deleteLock = useRef(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [categoryToDelete, setCategoryToDelete] = useState<CategoryRecord | null>(null)
   const {
     register,
     handleSubmit,
@@ -62,6 +87,29 @@ export function CategoryPage() {
       submitLock.current = false
     },
   })
+  const deleteMutation = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: async (_response, categoryId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY, exact: true }),
+        queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY }),
+      ])
+      setCategoryToDelete(null)
+      const categoryName = categoriesQuery.data?.find((category) => category.id === categoryId)?.name
+      toast.success(`Categoria "${categoryName ?? 'selecionada'}" excluída com sucesso.`)
+    },
+    onError: async (error) => {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        setCategoryToDelete(null)
+        await queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY, exact: true })
+      }
+
+      toast.error(getDeleteErrorMessage(error))
+    },
+    onSettled: () => {
+      deleteLock.current = false
+    },
+  })
 
   const submitCategory = (values: CategoryFormValues) => {
     if (submitLock.current) {
@@ -72,6 +120,15 @@ export function CategoryPage() {
     setSuccessMessage('')
     setErrorMessage('')
     createMutation.mutate({ name: values.name })
+  }
+
+  const confirmDeleteCategory = () => {
+    if (!categoryToDelete || deleteLock.current) {
+      return
+    }
+
+    deleteLock.current = true
+    deleteMutation.mutate(categoryToDelete.id)
   }
 
   return (
@@ -153,12 +210,33 @@ export function CategoryPage() {
           ) : (
             <ul className={styles.categories}>
               {categoriesQuery.data.map((category) => (
-                <li key={category.id}>{category.name}</li>
+                <li key={category.id} className={styles.categoryItem}>
+                  <span>{category.name}</span>
+                  <button
+                    className={styles.deleteButton}
+                    type="button"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => setCategoryToDelete(category)}
+                  >
+                    Excluir
+                  </button>
+                </li>
               ))}
             </ul>
           )}
         </section>
       </Card>
+      <ConfirmDialog
+        open={categoryToDelete !== null}
+        title="Excluir categoria"
+        description={`Deseja excluir a categoria "${categoryToDelete?.name ?? ''}"? Categorias com produtos vinculados não podem ser excluídas.`}
+        confirmLabel="Excluir"
+        confirmingLabel="Excluindo..."
+        confirmVariant="danger"
+        isConfirming={deleteMutation.isPending}
+        onConfirm={confirmDeleteCategory}
+        onCancel={() => setCategoryToDelete(null)}
+      />
     </div>
   )
 }

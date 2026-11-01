@@ -22,6 +22,11 @@ export function getInventoryErrorMessage(error: unknown, operation: StockOperati
   const status = error.response?.status
   const apiMessage = error.response?.data?.message
 
+  if (status === 409 && operation === 'replenishment') {
+    return typeof apiMessage === 'string' && apiMessage.trim()
+      ? apiMessage
+      : 'Não foi possível calcular o custo médio. Verifique o custo cadastrado do produto e tente novamente.'
+  }
   if (status === 409 && operation === 'adjustment') {
     return 'A quantidade informada já corresponde ao saldo atual. Nenhum ajuste foi realizado.'
   }

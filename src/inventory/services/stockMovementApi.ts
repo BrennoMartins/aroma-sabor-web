@@ -7,6 +7,7 @@ const StockMovementSchema = z.object({
   productName: z.string(),
   movementType: z.enum(['SALE', 'ENTRY', 'ADJUSTMENT', 'DISCARD']),
   quantity: z.number().int(),
+  stockAfter: z.number().int().nonnegative().nullable().optional(),
   createdAt: z.string(),
   reason: z.string().nullable(),
   discardReason: z.enum(['DAMAGED', 'EXPIRED', 'UNFIT_FOR_SALE', 'OTHER']).nullable().optional(),

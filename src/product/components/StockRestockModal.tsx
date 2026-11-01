@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { useReplenishStock } from '../../inventory/hooks/useStockOperations'
 import { getInventoryErrorMessage } from '../../inventory/services/inventoryErrorMessage'
 import { acquireStockOperationLock, releaseStockOperationLock } from '../../inventory/services/stockOperationLock'
+import { unitCostPriceInputSchema } from '../../inventory/services/unitCostPriceInputSchema'
 import { Button } from '../../shared/components/Button/Button'
 import { Input } from '../../shared/components/Input/Input'
 import { Modal } from '../../shared/components/Modal/Modal'
@@ -24,6 +25,7 @@ const restockSchema = z.object({
     .regex(/^[1-9]\d*$/, 'Informe um número inteiro maior que zero.')
     .transform(Number)
     .refine(Number.isSafeInteger, 'A quantidade informada é muito alta.'),
+  unitCostPrice: unitCostPriceInputSchema,
   reason: z.string().max(255, 'A observação deve ter no máximo 255 caracteres.'),
 })
 
@@ -38,7 +40,7 @@ export function StockRestockModal({ open, product, onClose }: StockRestockModalP
     formState: { errors },
   } = useForm<z.input<typeof restockSchema>, unknown, RestockFormValues>({
     resolver: zodResolver(restockSchema),
-    defaultValues: { quantity: '', reason: '' },
+    defaultValues: { quantity: '', unitCostPrice: '', reason: '' },
   })
 
   const submitRestock = (values: RestockFormValues) => {
@@ -53,7 +55,11 @@ export function StockRestockModal({ open, product, onClose }: StockRestockModalP
     mutation.mutate(
       {
         id: product.id,
-        payload: { quantity: values.quantity, reason: values.reason.trim() || undefined },
+        payload: {
+          quantity: values.quantity,
+          unitCostPrice: values.unitCostPrice,
+          reason: values.reason.trim() || undefined,
+        },
       },
       {
         onSuccess: () => {
@@ -99,6 +105,14 @@ export function StockRestockModal({ open, product, onClose }: StockRestockModalP
               inputMode="numeric"
               {...register('quantity')}
               error={errors.quantity?.message}
+            />
+            <Input
+              label="Custo unitário de compra"
+              inputMode="decimal"
+              placeholder="Ex.: 8,50"
+              maxLength={11}
+              {...register('unitCostPrice')}
+              error={errors.unitCostPrice?.message}
             />
             <Input
               label="Observação (opcional)"

@@ -3,17 +3,33 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  INACTIVE_PRODUCTS_QUERY_KEY,
+  PRODUCT_CATALOG_QUERY_KEY,
+  PRODUCTS_QUERY_KEY,
+} from '../../product/hooks/useProducts'
 import type { CategoryRecord } from '../services/categoryApi'
 import { CategoryPage } from './CategoryPage'
 
-const { createCategoryMock, getCategoriesMock } = vi.hoisted(() => ({
+const { createCategoryMock, deleteCategoryMock, getCategoriesMock, toastErrorMock, toastSuccessMock } = vi.hoisted(() => ({
   createCategoryMock: vi.fn(),
+  deleteCategoryMock: vi.fn(),
   getCategoriesMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
 }))
 
 vi.mock('../services/categoryApi', () => ({
   createCategory: (...args: unknown[]) => createCategoryMock(...args),
+  deleteCategory: (...args: unknown[]) => deleteCategoryMock(...args),
   getCategories: (...args: unknown[]) => getCategoriesMock(...args),
+}))
+
+vi.mock('../../shared/components/Toast/toast-store', () => ({
+  toast: {
+    error: (...args: unknown[]) => toastErrorMock(...args),
+    success: (...args: unknown[]) => toastSuccessMock(...args),
+  },
 }))
 
 const category: CategoryRecord = {
@@ -73,7 +89,10 @@ describe('CategoryPage', () => {
       },
     })
     createCategoryMock.mockReset()
+    deleteCategoryMock.mockReset()
     getCategoriesMock.mockReset()
+    toastErrorMock.mockReset()
+    toastSuccessMock.mockReset()
   })
 
   afterEach(() => {
@@ -106,6 +125,24 @@ describe('CategoryPage', () => {
     }
 
     throw new Error(`Timed out waiting for ${selector} to contain ${expectedText}`)
+  }
+
+  async function clickButton(button: HTMLButtonElement | null) {
+    if (!button) {
+      throw new Error('Button not found')
+    }
+
+    await act(async () => {
+      button.click()
+      await flush()
+    })
+  }
+
+  function getDialogButton(label: string) {
+    const dialog = document.querySelector('[role="dialog"]')
+
+    return Array.from(dialog?.querySelectorAll('button') ?? [])
+      .find((button) => button.textContent?.includes(label)) ?? null
   }
 
   it('shows loading while categories are being fetched', async () => {
@@ -213,5 +250,162 @@ describe('CategoryPage', () => {
     await submit()
 
     await waitForText('[role="alert"]', 'Já existe uma categoria com esse nome.')
+  })
+
+  it('offers delete and opens a confirmation naming the category', async () => {
+    getCategoriesMock.mockResolvedValueOnce([category])
+    await render()
+    await waitForText('ul', 'Mercearia')
+
+    const deleteAction = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Excluir',
+    )
+    expect(deleteAction).toBeDefined()
+    await clickButton(deleteAction ?? null)
+
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+      'Deseja excluir a categoria "Mercearia"? Categorias com produtos vinculados não podem ser excluídas.',
+    )
+    expect(deleteCategoryMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels category deletion without calling the API', async () => {
+    getCategoriesMock.mockResolvedValueOnce([category])
+    await render()
+    await waitForText('ul', 'Mercearia')
+    await clickButton(Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Excluir',
+    ) ?? null)
+    await clickButton(getDialogButton('Cancelar'))
+
+    expect(deleteCategoryMock).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('deletes the category and invalidates category and product queries', async () => {
+    let currentCategories = [category]
+    getCategoriesMock.mockImplementation(async () => currentCategories)
+    deleteCategoryMock.mockImplementationOnce(async () => {
+      currentCategories = []
+    })
+    await render()
+    await waitForText('ul', 'Mercearia')
+    queryClient.setQueryData(PRODUCTS_QUERY_KEY, [])
+    queryClient.setQueryData([...PRODUCT_CATALOG_QUERY_KEY, { search: '', active: true, page: 0, size: 20 }], {})
+    queryClient.setQueryData(INACTIVE_PRODUCTS_QUERY_KEY, [])
+    queryClient.setQueryData(['unrelated', 'query'], {})
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await clickButton(Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Excluir',
+    ) ?? null)
+    await clickButton(getDialogButton('Excluir'))
+    await waitForText('[role="status"]', 'Nenhuma categoria cadastrada.')
+
+    expect(deleteCategoryMock.mock.calls[0]?.[0]).toBe(category.id)
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['categories'], exact: true })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: PRODUCTS_QUERY_KEY })
+    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ['unrelated', 'query'] })
+    expect(queryClient.getQueryState(PRODUCTS_QUERY_KEY)?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(INACTIVE_PRODUCTS_QUERY_KEY)?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(['unrelated', 'query'])?.isInvalidated).toBe(false)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(toastSuccessMock).toHaveBeenCalledWith('Categoria "Mercearia" excluída com sucesso.')
+  })
+
+  it('shows pending state and prevents duplicate delete requests', async () => {
+    getCategoriesMock.mockResolvedValueOnce([category])
+    let resolveDelete: () => void = () => undefined
+    deleteCategoryMock.mockReturnValueOnce(new Promise<void>((resolve) => {
+      resolveDelete = resolve
+    }))
+    await render()
+    await waitForText('ul', 'Mercearia')
+    await clickButton(Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Excluir',
+    ) ?? null)
+
+    await clickButton(getDialogButton('Excluir'))
+    expect(getDialogButton('Excluindo...')?.disabled).toBe(true)
+    expect(deleteCategoryMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveDelete()
+      await flush()
+    })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('shows the domain conflict message and preserves the category', async () => {
+    getCategoriesMock.mockResolvedValueOnce([category])
+    deleteCategoryMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { message: 'Esta categoria possui produtos vinculados e não pode ser excluída.' },
+      },
+    })
+    await render()
+    await waitForText('ul', 'Mercearia')
+    await clickButton(Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Excluir',
+    ) ?? null)
+    await clickButton(getDialogButton('Excluir'))
+
+    expect(toastErrorMock).toHaveBeenCalledWith('Esta categoria possui produtos vinculados e não pode ser excluída.')
+    expect(container.querySelector('ul')?.textContent).toContain('Mercearia')
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+  })
+
+  it('informs when a category is missing and refreshes the list', async () => {
+    let currentCategories = [category]
+    getCategoriesMock.mockImplementation(async () => currentCategories)
+    deleteCategoryMock.mockImplementationOnce(async () => {
+      currentCategories = []
+      throw {
+        isAxiosError: true,
+        response: { status: 404 },
+      }
+    })
+    await render()
+    await waitForText('ul', 'Mercearia')
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    await clickButton(Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Excluir',
+    ) ?? null)
+    await clickButton(getDialogButton('Excluir'))
+    await waitForText('[role="status"]', 'Nenhuma categoria cadastrada.')
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Esta categoria não está mais disponível. A lista foi atualizada.',
+    )
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['categories'], exact: true })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('allows retrying after an unexpected delete error', async () => {
+    let currentCategories = [category]
+    getCategoriesMock.mockImplementation(async () => currentCategories)
+    deleteCategoryMock
+      .mockRejectedValueOnce(new Error('Network failed'))
+      .mockImplementationOnce(async () => {
+        currentCategories = []
+      })
+    await render()
+    await waitForText('ul', 'Mercearia')
+    await clickButton(Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Excluir',
+    ) ?? null)
+    await clickButton(getDialogButton('Excluir'))
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Não foi possível excluir a categoria. Verifique a conexão e tente novamente.',
+    )
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(container.querySelector('ul')?.textContent).toContain('Mercearia')
+
+    await clickButton(getDialogButton('Excluir'))
+    expect(deleteCategoryMock).toHaveBeenCalledTimes(2)
+    await waitForText('[role="status"]', 'Nenhuma categoria cadastrada.')
   })
 })

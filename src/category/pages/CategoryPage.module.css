@@ -103,6 +103,40 @@
   overflow-wrap: anywhere;
 }
 
+.categoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.deleteButton {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-danger);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.deleteButton:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
+
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .emptyState {
   margin: 0;
   padding: var(--space-md);
@@ -120,5 +154,9 @@
 
   .form > button {
     width: 100%;
+  }
+
+  .categoryItem {
+    align-items: flex-start;
   }
 }

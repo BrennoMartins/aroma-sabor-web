@@ -16,6 +16,7 @@ const pageResponse = {
       productName: 'Arroz',
       movementType: 'ENTRY',
       quantity: 5,
+      stockAfter: 10,
       createdAt: '2026-10-25T18:30:00',
       reason: 'Nota fiscal 31',
       referenceSaleId: null,
@@ -47,7 +48,7 @@ describe('getStockMovements', () => {
     }
 
     await expect(getStockMovements(filters)).resolves.toMatchObject({
-      content: [{ productName: 'Arroz', referenceSaleId: null }],
+      content: [{ productName: 'Arroz', quantity: 5, stockAfter: 10, referenceSaleId: null }],
       number: 0,
       totalPages: 1,
       totalElements: 1,
@@ -70,6 +71,35 @@ describe('getStockMovements', () => {
 
   it('rejeita resposta fora do contrato da página', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({ data: { content: [] } })
+
+    await expect(getStockMovements({ page: 0, size: 20 })).rejects.toBeInstanceOf(InvalidStockMovementPageError)
+  })
+
+  it('aceita saldo nulo ou ausente em movimentações históricas legadas', async () => {
+    const [movement] = pageResponse.content
+    const { stockAfter: _stockAfter, ...legacyMovement } = movement
+    expect(_stockAfter).toBe(10)
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({
+        data: { ...pageResponse, content: [{ ...movement, stockAfter: null }] },
+      })
+      .mockResolvedValueOnce({
+        data: { ...pageResponse, content: [legacyMovement] },
+      })
+
+    await expect(getStockMovements({ page: 0, size: 20 })).resolves.toMatchObject({
+      content: [{ stockAfter: null }],
+    })
+    await expect(getStockMovements({ page: 0, size: 20 })).resolves.toMatchObject({
+      content: [{ quantity: 5 }],
+    })
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([-1, 1.5, '10'])('rejeita saldo após movimentação inválido: %s', async (stockAfter) => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: { ...pageResponse, content: [{ ...pageResponse.content[0], stockAfter }] },
+    })
 
     await expect(getStockMovements({ page: 0, size: 20 })).rejects.toBeInstanceOf(InvalidStockMovementPageError)
   })

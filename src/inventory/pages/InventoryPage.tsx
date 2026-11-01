@@ -11,6 +11,7 @@ import { Input } from '../../shared/components/Input/Input'
 import { useAdjustStock, useReplenishStock } from '../hooks/useStockOperations'
 import { useStockMovements } from '../hooks/useStockMovements'
 import { acquireStockOperationLock, releaseStockOperationLock } from '../services/stockOperationLock'
+import { unitCostPriceInputSchema } from '../services/unitCostPriceInputSchema'
 import type { StockMovement, StockMovementFilters } from '../services/stockMovementApi'
 import styles from './InventoryPage.module.css'
 
@@ -33,6 +34,7 @@ const nonNegativeInteger = z
 const replenishmentSchema = z.object({
   productId: z.string().min(1, 'Selecione um produto.').transform(Number),
   quantity: positiveInteger,
+  unitCostPrice: unitCostPriceInputSchema,
   reason: z.string().max(255, 'A observação deve ter no máximo 255 caracteres.'),
 })
 
@@ -255,7 +257,8 @@ function MovementHistory({ products }: { products: ProductRecord[] }) {
                   <th scope="col">Data e hora</th>
                   <th scope="col">Produto</th>
                   <th scope="col">Tipo</th>
-                  <th scope="col">Quantidade</th>
+                  <th scope="col" className={styles.numericHeading}>Quantidade</th>
+                  <th scope="col" className={styles.numericHeading}>Saldo após movimentação</th>
                   <th scope="col">Motivo</th>
                   <th scope="col">Venda</th>
                 </tr>
@@ -266,7 +269,17 @@ function MovementHistory({ products }: { products: ProductRecord[] }) {
                     <td>{formatDateTime(movement.createdAt)}</td>
                     <th scope="row">{movement.productName}</th>
                     <td>{movementLabels[movement.movementType]}</td>
-                    <td>{movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity}</td>
+                    <td className={styles.numericCell}>
+                      {movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity}
+                    </td>
+                    <td
+                      className={[
+                        styles.numericCell,
+                        movement.stockAfter == null ? styles.unavailable : '',
+                      ].filter(Boolean).join(' ')}
+                    >
+                      {movement.stockAfter ?? 'Não disponível'}
+                    </td>
                     <td>{movement.reason || '—'}</td>
                     <td>{movement.referenceSaleId ? `#${movement.referenceSaleId}` : '—'}</td>
                   </tr>
@@ -313,7 +326,7 @@ export function InventoryPage() {
 
   const replenishmentForm = useForm<z.input<typeof replenishmentSchema>, unknown, ReplenishmentFormValues>({
     resolver: zodResolver(replenishmentSchema),
-    defaultValues: { productId: '', quantity: '', reason: '' },
+    defaultValues: { productId: '', quantity: '', unitCostPrice: '', reason: '' },
   })
   const adjustmentForm = useForm<z.input<typeof adjustmentSchema>, unknown, AdjustmentFormValues>({
     resolver: zodResolver(adjustmentSchema),
@@ -329,7 +342,11 @@ export function InventoryPage() {
     replenishMutation.mutate(
       {
         id: values.productId,
-        payload: { quantity: values.quantity, reason: values.reason.trim() || undefined },
+        payload: {
+          quantity: values.quantity,
+          unitCostPrice: values.unitCostPrice,
+          reason: values.reason.trim() || undefined,
+        },
       },
       {
         onSuccess: () => replenishmentForm.reset(),
@@ -370,8 +387,19 @@ export function InventoryPage() {
 
   return (
     <section className={styles.page}>
-      <div className={styles.operations}>
-        <Card title="Reposição de estoque" className={styles.card}>
+      <header className={styles.header}>
+        <div>
+          <p className={styles.eyebrow}>Estoque</p>
+          <h1>Gestão de estoque</h1>
+          <p className={styles.headerDescription}>
+            Registre entradas, ajustes e consulte o histórico de movimentações.
+          </p>
+        </div>
+      </header>
+
+      <section className={styles.operations} aria-label="Operações de estoque">
+        <Card title="Reposição de estoque" className={`${styles.card} ${styles.replenishmentCard}`}>
+          <span className={`${styles.operationType} ${styles.entryType}`}>ENTRADA</span>
           <p className={styles.description}>Informe quanto será acrescentado ao saldo atual.</p>
           <ProductQueryStatus query={productsQuery} />
           {products.length ? (
@@ -395,6 +423,14 @@ export function InventoryPage() {
                 error={replenishmentForm.formState.errors.quantity?.message}
               />
               <Input
+                label="Custo unitário de compra"
+                inputMode="decimal"
+                placeholder="Ex.: 8,50"
+                maxLength={11}
+                {...replenishmentForm.register('unitCostPrice')}
+                error={replenishmentForm.formState.errors.unitCostPrice?.message}
+              />
+              <Input
                 label="Observação (opcional)"
                 maxLength={255}
                 {...replenishmentForm.register('reason')}
@@ -407,7 +443,8 @@ export function InventoryPage() {
           ) : null}
         </Card>
 
-        <Card title="Ajuste manual de estoque" className={styles.card}>
+        <Card title="Ajuste manual de estoque" className={`${styles.card} ${styles.adjustmentCard}`}>
+          <span className={`${styles.operationType} ${styles.adjustmentType}`}>CONTAGEM FÍSICA</span>
           <p className={styles.description}>
             A quantidade informada é o saldo físico final, não a quantidade a acrescentar ou retirar.
           </p>
@@ -444,7 +481,7 @@ export function InventoryPage() {
             </form>
           ) : null}
         </Card>
-      </div>
+      </section>
 
       <MovementHistory products={allProducts} />
 

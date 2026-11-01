@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../shared/api/axios'
-import { createCategory, getCategories } from './categoryApi'
+import { createCategory, deleteCategory, getCategories } from './categoryApi'
 
 vi.mock('../../shared/api/axios', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
   },
 }))
 
@@ -13,6 +14,7 @@ describe('getCategories', () => {
   beforeEach(() => {
     vi.mocked(api.get).mockReset()
     vi.mocked(api.post).mockReset()
+    vi.mocked(api.delete).mockReset()
   })
 
   it('consulta a listagem real de categorias', async () => {
@@ -31,5 +33,12 @@ describe('getCategories', () => {
 
     await expect(createCategory({ name: 'Mercearia' })).resolves.toBe(category)
     expect(api.post).toHaveBeenCalledWith('/categories', { name: 'Mercearia' })
+  })
+
+  it('exclui categoria pelo contrato real da API', async () => {
+    vi.mocked(api.delete).mockResolvedValueOnce({ data: undefined })
+
+    await expect(deleteCategory(17)).resolves.toBeUndefined()
+    expect(api.delete).toHaveBeenCalledWith('/categories/17')
   })
 })

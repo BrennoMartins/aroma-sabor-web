@@ -223,11 +223,6 @@ function SalesList() {
         </div>
       </div>
 
-      <p className={styles.notice}>
-        A API não oferece paginação nem filtros por data. O histórico é carregado integralmente e as datas são
-        filtradas localmente.
-      </p>
-
       {invalidDateRange ? (
         null
       ) : salesQuery.isPending ? (

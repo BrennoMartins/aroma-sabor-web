@@ -123,27 +123,6 @@
   box-shadow: inset 3px 0 0 var(--color-brand-primary);
 }
 
-.itemDisabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.futureSection {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 14px;
-  border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
-}
-
-.futureLabel {
-  padding: 0 14px;
-  color: var(--color-text-secondary);
-  font-size: var(--font-caption-size);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .skipLink {
   position: absolute;
   left: 16px;

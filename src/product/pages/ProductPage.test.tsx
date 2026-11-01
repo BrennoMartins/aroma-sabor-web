@@ -11,11 +11,13 @@ import { ProductPage } from './ProductPage'
 const {
   getCategoriesMock,
   createCategoryMock,
+  deleteCategoryMock,
   getProductByBarcodeMock,
   productListRenderMock,
 } = vi.hoisted(() => ({
   getCategoriesMock: vi.fn(),
   createCategoryMock: vi.fn(),
+  deleteCategoryMock: vi.fn(),
   getProductByBarcodeMock: vi.fn(),
   productListRenderMock: vi.fn(),
 }))
@@ -23,6 +25,7 @@ const {
 vi.mock('../../category/services/categoryApi', () => ({
   getCategories: (...args: unknown[]) => getCategoriesMock(...args),
   createCategory: (...args: unknown[]) => createCategoryMock(...args),
+  deleteCategory: (...args: unknown[]) => deleteCategoryMock(...args),
 }))
 
 vi.mock('../services/productApi', () => ({
@@ -90,6 +93,7 @@ describe('ProductPage tabs', () => {
     })
     getCategoriesMock.mockReset().mockResolvedValue([category])
     createCategoryMock.mockReset()
+    deleteCategoryMock.mockReset()
     getProductByBarcodeMock.mockReset()
     productListRenderMock.mockClear()
   })

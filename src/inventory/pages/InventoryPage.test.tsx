@@ -66,6 +66,7 @@ const movementPage = {
       productName: 'Arroz',
       movementType: 'ENTRY' as const,
       quantity: 5,
+      stockAfter: 10,
       createdAt: '2026-10-25T18:30:00',
       reason: 'Nota fiscal 31',
       referenceSaleId: null,
@@ -187,16 +188,50 @@ describe('InventoryPage', () => {
     expect(document.body.textContent).toContain('número inteiro maior que zero')
 
     setFieldValue('[name="quantity"]', '4')
+    setFieldValue('[name="unitCostPrice"]', '8,50')
     setFieldValue('[name="reason"]', 'Recebimento')
     const serverProduct = { ...products[0], stockQuantity: 9 }
     replenishProductMock.mockResolvedValueOnce(serverProduct)
     getProductsMock.mockResolvedValueOnce([serverProduct])
     await submitForm('#inventory-replenishment-form')
 
-    expect(replenishProductMock).toHaveBeenCalledWith(7, { quantity: 4, reason: 'Recebimento' })
+    expect(replenishProductMock).toHaveBeenCalledWith(7, {
+      quantity: 4,
+      unitCostPrice: 8.5,
+      reason: 'Recebimento',
+    })
     expect(queryClient.getQueryData<ProductRecord[]>(['products'])?.[0].stockQuantity).toBe(9)
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: DASHBOARD_LOW_STOCK_QUERY_KEY })
     expect(toastSuccessMock).toHaveBeenCalledWith('Reposição registrada com sucesso.')
+  })
+
+  it('exige custo unitário e informa conflito quando o custo atual do estoque é desconhecido', async () => {
+    await render()
+    setFieldValue('#replenishment-product', '7')
+    setFieldValue('[name="quantity"]', '2')
+    await submitForm('#inventory-replenishment-form')
+
+    expect(replenishProductMock).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Informe o custo unitário de compra.')
+
+    setFieldValue('[name="unitCostPrice"]', '0')
+    replenishProductMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { message: 'O custo médio do estoque existente não está cadastrado.' },
+      },
+    })
+    await submitForm('#inventory-replenishment-form')
+
+    expect(replenishProductMock).toHaveBeenCalledWith(7, {
+      quantity: 2,
+      unitCostPrice: 0,
+      reason: undefined,
+    })
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'O custo médio do estoque existente não está cadastrado.',
+    )
   })
 
   it('confirma ajuste com quantidade física zero e atualiza o produto pela resposta', async () => {
@@ -304,6 +339,40 @@ describe('InventoryPage', () => {
     })
   })
 
+  it('exibe quantidade e saldo após movimentação em colunas distintas', async () => {
+    await render()
+
+    expect(container.querySelector('h1')?.textContent).toBe('Gestão de estoque')
+    expect(container.textContent).toContain('ENTRADA')
+    expect(container.textContent).toContain('CONTAGEM FÍSICA')
+    expect(container.querySelector('label[for="unitCostPrice"]')?.textContent)
+      .toBe('Custo unitário de compra')
+
+    const historyTable = document.querySelector('table')
+    expect(historyTable).not.toBeNull()
+    expect(historyTable?.querySelector('th[scope="col"]:nth-child(4)')?.textContent).toBe('Quantidade')
+    expect(historyTable?.querySelector('th[scope="col"]:nth-child(5)')?.textContent)
+      .toBe('Saldo após movimentação')
+    expect(historyTable?.querySelector('tbody tr')?.children[3]?.textContent).toBe('+5')
+    expect(historyTable?.querySelector('tbody tr')?.children[4]?.textContent).toBe('10')
+  })
+
+  it('mostra Não disponível para saldos nulos ou ausentes sem estimar valores', async () => {
+    const { stockAfter: _stockAfter, ...legacyMovement } = movementPage.content[0]
+    expect(_stockAfter).toBe(10)
+    getStockMovementsMock.mockResolvedValueOnce({
+      ...movementPage,
+      content: [{ ...movementPage.content[0], stockAfter: null }, { ...legacyMovement, id: 43 }],
+      totalElements: 2,
+    })
+    await render()
+    await waitForText('Saldo após movimentação')
+
+    const balanceCells = Array.from(document.querySelectorAll('tbody tr'))
+      .map((row) => row.children[4]?.textContent)
+    expect(balanceCells).toEqual(['Não disponível', 'Não disponível'])
+  })
+
   it('mostra estado vazio após tentar novamente quando a consulta falha', async () => {
     getStockMovementsMock
       .mockRejectedValueOnce(new Error('network error'))
@@ -322,6 +391,7 @@ describe('InventoryPage', () => {
     await render()
     setFieldValue('#replenishment-product', '7')
     setFieldValue('[name="quantity"]', '2')
+    setFieldValue('[name="unitCostPrice"]', '8,50')
 
     await act(async () => {
       document.querySelector<HTMLFormElement>('#inventory-replenishment-form')?.dispatchEvent(

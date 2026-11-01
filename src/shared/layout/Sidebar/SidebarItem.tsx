@@ -7,20 +7,10 @@ type SidebarItemProps = {
   label: string
   to: string
   active?: boolean
-  disabled?: boolean
   onNavigate?: () => void
 }
 
-export function SidebarItem({ icon: Icon, label, to, active, disabled = false, onNavigate }: SidebarItemProps) {
-  if (disabled) {
-    return (
-      <span className={[styles.item, styles.itemDisabled].join(' ')} aria-disabled="true">
-        <Icon size={18} aria-hidden="true" />
-        <span>{label}</span>
-      </span>
-    )
-  }
-
+export function SidebarItem({ icon: Icon, label, to, active, onNavigate }: SidebarItemProps) {
   return (
     <NavLink
       to={to}

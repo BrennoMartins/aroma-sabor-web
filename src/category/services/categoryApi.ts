@@ -21,3 +21,7 @@ export async function createCategory(payload: CreateCategoryRequest) {
 
   return response.data
 }
+
+export async function deleteCategory(id: number) {
+  await api.delete<void>(`/categories/${id}`)
+}

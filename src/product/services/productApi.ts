@@ -42,6 +42,7 @@ export type ProductCatalogResponse = {
 
 export type StockReplenishmentRequest = {
   quantity: number
+  unitCostPrice: number
   reason?: string
 }
 

@@ -105,6 +105,10 @@ describe('StockRestockModal', () => {
 
     expect(replenishProductMock).not.toHaveBeenCalled()
     expect(document.body.textContent).toContain('número inteiro maior que zero')
+    setFieldValue('[name="quantity"]', '2')
+    await submit()
+    expect(replenishProductMock).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Informe o custo unitário de compra.')
   })
 
   it('envia a reposição com resposta confirmada pelo backend e atualiza o saldo em cache', async () => {
@@ -113,11 +117,16 @@ describe('StockRestockModal', () => {
     replenishProductMock.mockResolvedValueOnce(serverProduct)
     await render(onClose)
     setFieldValue('[name="quantity"]', '5')
+    setFieldValue('[name="unitCostPrice"]', '8,50')
     setFieldValue('[name="reason"]', 'Nota fiscal 31')
 
     await submit()
 
-    expect(replenishProductMock).toHaveBeenCalledWith(1, { quantity: 5, reason: 'Nota fiscal 31' })
+    expect(replenishProductMock).toHaveBeenCalledWith(1, {
+      quantity: 5,
+      unitCostPrice: 8.5,
+      reason: 'Nota fiscal 31',
+    })
     expect(queryClient.getQueryData<ProductRecord[]>(['products'])).toEqual([serverProduct])
     expect(toastSuccessMock).toHaveBeenCalledWith('Reposição registrada com sucesso.')
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -127,6 +136,7 @@ describe('StockRestockModal', () => {
     replenishProductMock.mockReturnValueOnce(new Promise(() => undefined))
     await render()
     setFieldValue('[name="quantity"]', '5')
+    setFieldValue('[name="unitCostPrice"]', '8,50')
 
     await act(async () => {
       document.querySelector<HTMLFormElement>('#product-restock-form')?.dispatchEvent(

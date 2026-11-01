@@ -1,7 +1,6 @@
 import {
   Archive,
   ChartColumnIncreasing,
-  Cog,
   CircleAlert,
   LayoutDashboard,
   Package,
@@ -48,11 +47,6 @@ export function Sidebar({ isOpen, isDesktop, onClose }: SidebarProps) {
         {navigationItems.map(({ to, label, icon }) => (
           <SidebarItem key={to} to={to} label={label} icon={icon} onNavigate={onClose} />
         ))}
-
-        <div className={styles.futureSection} aria-label="Itens futuros">
-          <span className={styles.futureLabel}>Futuro</span>
-          <SidebarItem to="/settings" label="Configurações" icon={Cog} disabled />
-        </div>
       </nav>
 
       <a href="#main-content" className={styles.skipLink}>

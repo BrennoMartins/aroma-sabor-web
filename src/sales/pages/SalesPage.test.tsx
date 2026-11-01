@@ -95,6 +95,19 @@ describe('SalesPage', () => {
     throw new Error(`Timed out waiting for text: ${text}`)
   }
 
+  async function setDate(name: 'startDate' | 'endDate', value: string) {
+    const field = container.querySelector<HTMLInputElement>(`input[name="${name}"]`)
+    if (!field) {
+      throw new Error(`Date field not found: ${name}`)
+    }
+
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(field, value)
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+      field.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+
   it('carrega vendas com identificador, data, itens, total e status', async () => {
     getSalesMock.mockResolvedValueOnce(sales)
 
@@ -177,6 +190,58 @@ describe('SalesPage', () => {
     )
     await act(async () => clearButton?.click())
     expect(document.body.textContent).toContain('#40')
+    expect(getSalesMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('renderiza calendários nativos e filtra cada limite opcionalmente, incluindo os dias limites', async () => {
+    getSalesMock.mockResolvedValueOnce([
+      { ...sales[0], id: 46, createdAt: '2026-10-24T23:59:59' },
+      { ...sales[0], id: 47, createdAt: '2026-10-25T00:00:00' },
+      { ...sales[0], id: 48, createdAt: '2026-10-25T23:59:59' },
+      { ...sales[0], id: 49, createdAt: '2026-10-26T00:00:00' },
+    ])
+
+    await render()
+    await waitForText('#49')
+
+    const startDate = container.querySelector<HTMLInputElement>('input[name="startDate"]')
+    const endDate = container.querySelector<HTMLInputElement>('input[name="endDate"]')
+    expect(startDate?.type).toBe('date')
+    expect(endDate?.type).toBe('date')
+    expect(document.body.textContent).not.toContain(
+      'A API não oferece paginação nem filtros por data. O histórico é carregado integralmente e as datas são filtradas localmente.',
+    )
+
+    await setDate('startDate', '2026-10-25')
+    expect(document.body.textContent).not.toContain('#46')
+    expect(document.body.textContent).toContain('#47')
+    expect(document.body.textContent).toContain('#48')
+    expect(document.body.textContent).toContain('#49')
+
+    await setDate('startDate', '')
+    await setDate('endDate', '2026-10-25')
+    expect(document.body.textContent).toContain('#46')
+    expect(document.body.textContent).toContain('#47')
+    expect(document.body.textContent).toContain('#48')
+    expect(document.body.textContent).not.toContain('#49')
+
+    await setDate('startDate', '2026-10-25')
+    expect(document.body.textContent).not.toContain('#46')
+    expect(document.body.textContent).toContain('#47')
+    expect(document.body.textContent).toContain('#48')
+    expect(document.body.textContent).not.toContain('#49')
+
+    await setDate('startDate', '')
+    expect(document.body.textContent).toContain('#46')
+    expect(document.body.textContent).toContain('#47')
+    expect(document.body.textContent).toContain('#48')
+    expect(document.body.textContent).not.toContain('#49')
+
+    await setDate('endDate', '')
+    expect(document.body.textContent).toContain('#46')
+    expect(document.body.textContent).toContain('#47')
+    expect(document.body.textContent).toContain('#48')
+    expect(document.body.textContent).toContain('#49')
     expect(getSalesMock).toHaveBeenCalledTimes(1)
   })
 
