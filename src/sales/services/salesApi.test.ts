@@ -20,11 +20,31 @@ const sale = {
     {
       productId: 8,
       productName: 'Café',
+      categoryId: 3,
+      categoryName: 'Mercearia',
       quantity: 2,
       unitPrice: 14.99,
+      unitCostPrice: 8.5,
       subtotal: 29.98,
+      discountAllocatedAmount: 1.25,
     },
   ],
+}
+
+const oldItem = {
+  productId: 8,
+  quantity: 2,
+  unitPrice: 14.99,
+  subtotal: 29.98,
+}
+
+const normalizedOldItem = {
+  ...oldItem,
+  productName: null,
+  categoryId: null,
+  categoryName: null,
+  unitCostPrice: null,
+  discountAllocatedAmount: null,
 }
 
 describe('salesApi', () => {
@@ -59,6 +79,84 @@ describe('salesApi', () => {
     const result = await getSaleById('41')
     expect(result.subtotal).toBeUndefined()
     expect(result.discountAmount).toBeUndefined()
+  })
+
+  it('preserva campos históricos nulos sem reconstruí-los', async () => {
+    const legacySale = {
+      ...sale,
+      items: [{
+        productId: 9,
+        productName: null,
+        categoryId: null,
+        categoryName: null,
+        quantity: 1,
+        unitPrice: 5,
+        unitCostPrice: null,
+        subtotal: 5,
+        discountAllocatedAmount: null,
+      }],
+    }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: legacySale })
+
+    await expect(getSaleById('41')).resolves.toEqual(legacySale)
+  })
+
+  it('normaliza campos históricos ausentes no detalhe sem inventar valores monetários', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ data: { ...sale, items: [oldItem] } })
+
+    await expect(getSaleById('41')).resolves.toEqual({ ...sale, items: [normalizedOldItem] })
+  })
+
+  it('processa vendas dos contratos antigo e atual na mesma listagem', async () => {
+    const oldSale = { ...sale, id: 40, items: [oldItem] }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: [oldSale, sale] })
+
+    await expect(getSales()).resolves.toEqual([
+      { ...oldSale, items: [normalizedOldItem] },
+      sale,
+    ])
+  })
+
+  it('preserva custo e desconto alocado iguais a zero', async () => {
+    const zeroSale = {
+      ...sale,
+      items: [{ ...sale.items[0], unitCostPrice: 0, discountAllocatedAmount: 0 }],
+    }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: zeroSale })
+
+    await expect(getSaleById('41')).resolves.toEqual(zeroSale)
+  })
+
+  it.each([null, 0])('preserva lucro bruto conhecido igual a %s', async (grossProfitKnownAmount) => {
+    const result = { ...sale, grossProfitKnownAmount }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: result })
+
+    await expect(getSaleById('41')).resolves.toEqual(result)
+  })
+
+  it.each(['quantity', 'unitPrice', 'subtotal'] as const)(
+    'rejeita item sem campo financeiro essencial %s',
+    async (field) => {
+      const item: Partial<typeof oldItem> = { ...oldItem }
+      delete item[field]
+      vi.mocked(api.get).mockResolvedValueOnce({ data: { ...sale, items: [item] } })
+
+      await expect(getSaleById('41')).rejects.toBeInstanceOf(InvalidSaleResponseError)
+    },
+  )
+
+  it.each([
+    ['productName', 123],
+    ['categoryId', '3'],
+    ['categoryName', 123],
+    ['unitCostPrice', '8.5'],
+    ['discountAllocatedAmount', '1.25'],
+  ])('rejeita tipo inválido para o campo histórico %s', async (field, value) => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: { ...sale, items: [{ ...oldItem, [field]: value }] },
+    })
+
+    await expect(getSaleById('41')).rejects.toBeInstanceOf(InvalidSaleResponseError)
   })
 
   it('rejeita respostas que não correspondem ao DTO de venda', async () => {

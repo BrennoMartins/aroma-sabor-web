@@ -3,10 +3,14 @@ import { api } from '../../shared/api/axios'
 
 const SaleItemSchema = z.object({
   productId: z.number(),
-  productName: z.string(),
+  productName: z.string().nullable().default(null),
+  categoryId: z.number().nullable().default(null),
+  categoryName: z.string().nullable().default(null),
   quantity: z.number(),
   unitPrice: z.number(),
+  unitCostPrice: z.number().nullable().default(null),
   subtotal: z.number(),
+  discountAllocatedAmount: z.number().nullable().default(null),
 })
 
 const GrossProfitFieldsSchema = {

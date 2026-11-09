@@ -47,6 +47,21 @@ describe('getSalesReport', () => {
       .rejects.toBeInstanceOf(InvalidSalesReportResponseError)
   })
 
+  it('accepts an indeterminate gross profit while preserving other report values', async () => {
+    const indeterminateReport = { ...report, grossProfitKnownAmount: null }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: indeterminateReport })
+
+    await expect(getSalesReport('2026-10-01', '2026-10-03')).resolves.toEqual(indeterminateReport)
+  })
+
+  it('preserves valid negative known profit values', async () => {
+    const negativeProfitReport = { ...report, grossProfitKnownAmount: -12.4 }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: negativeProfitReport })
+
+    await expect(getSalesReport('2026-10-01', '2026-10-03'))
+      .resolves.toMatchObject({ grossProfitKnownAmount: -12.4 })
+  })
+
   it('rejects responses with a different period or incomplete daily entries', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({
       data: { ...report, dailySales: report.dailySales.slice(0, 2) },

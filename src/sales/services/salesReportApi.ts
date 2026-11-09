@@ -13,7 +13,7 @@ const SalesReportSchema = z.object({
   totalRevenue: z.number().finite().nonnegative(),
   salesCount: z.number().int().nonnegative(),
   averageTicket: z.number().finite().nonnegative(),
-  grossProfitKnownAmount: z.number().finite(),
+  grossProfitKnownAmount: z.number().finite().nullable(),
   grossProfitComplete: z.boolean(),
   itemsWithoutHistoricalCost: z.number().int().nonnegative(),
   dailySales: z.array(DailySalesReportEntrySchema),

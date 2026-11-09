@@ -150,6 +150,26 @@ describe('DashboardPage', () => {
     expect(text).toContain('1 item(ns) sem custo histórico')
   })
 
+  it('shows indeterminate profit without formatting null as zero or changing other indicators', async () => {
+    getDashboardSummaryMock.mockResolvedValueOnce({
+      ...openTurnSummary,
+      grossProfitKnownAmount: null,
+      grossProfitComplete: false,
+    })
+
+    await render()
+    await waitForText('Lucro indeterminado')
+
+    const metric = container.querySelector('[aria-label="Indicadores de hoje"]')?.lastElementChild
+    const text = (document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+    expect(metric?.textContent).toContain('Lucro indeterminado')
+    expect(metric?.textContent).not.toContain('R$ 0,00')
+    expect(text).toContain('Faltam dados históricos para calcular o lucro com segurança.')
+    expect(text).toContain('R$ 58,50')
+    expect(text).toContain('29,25')
+    expect(text).toContain('Vendas concluídas')
+  })
+
   it('shows the current turn, opening time, recent sales and existing workflow links', async () => {
     getDashboardSummaryMock.mockResolvedValueOnce(openTurnSummary)
 

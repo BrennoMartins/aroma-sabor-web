@@ -304,14 +304,22 @@ export function SalesReportPage() {
             />
             <ReportMetric
               label="Lucro bruto"
-              value={report.grossProfitComplete
-                ? currencyFormatter.format(report.grossProfitKnownAmount)
-                : `Incompleto · conhecido ${currencyFormatter.format(report.grossProfitKnownAmount)}`}
+              value={report.grossProfitKnownAmount === null
+                ? 'Lucro indeterminado'
+                : report.grossProfitComplete
+                  ? currencyFormatter.format(report.grossProfitKnownAmount)
+                  : `Incompleto · conhecido ${currencyFormatter.format(report.grossProfitKnownAmount)}`}
               icon={TrendingUp}
-              tone={report.grossProfitComplete ? 'success' : 'warning'}
+              tone={report.grossProfitComplete && report.grossProfitKnownAmount !== null
+                ? 'success'
+                : 'warning'}
             />
           </section>
-          {!report.grossProfitComplete ? (
+          {report.grossProfitKnownAmount === null ? (
+            <p className={styles.profitNotice} role="status">
+              Faltam dados históricos para calcular o lucro com segurança.
+            </p>
+          ) : !report.grossProfitComplete ? (
             <p className={styles.profitNotice} role="status">
               Lucro bruto incompleto: {report.itemsWithoutHistoricalCost} item(ns) sem custo histórico no período.
             </p>

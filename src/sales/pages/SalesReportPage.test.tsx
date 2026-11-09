@@ -143,8 +143,10 @@ describe('SalesReportPage', () => {
     expect(container.textContent).toContain('A data final não pode ser anterior à data inicial.')
     expect(getSalesReportMock).not.toHaveBeenCalled()
 
-    setDate('startDate', '2026-10-01')
-    setDate('endDate', '2026-10-03')
+    await act(async () => {
+      setDate('startDate', '2026-10-01')
+      setDate('endDate', '2026-10-03')
+    })
     await submitPeriod()
     await waitForText('Receita líquida total')
 
@@ -200,6 +202,30 @@ describe('SalesReportPage', () => {
     expect(text).toContain('Incompleto')
     expect(text).toContain('-R$ 12,40')
     expect(text).toContain('3 item(ns) sem custo histórico no período')
+  })
+
+  it('shows indeterminate profit without formatting it as zero and preserves the daily series', async () => {
+    getSalesReportMock.mockResolvedValueOnce({
+      ...report,
+      grossProfitKnownAmount: null,
+      grossProfitComplete: false,
+    })
+    await render()
+
+    await act(async () => {
+      setDate('startDate', '2026-10-01')
+      setDate('endDate', '2026-10-03')
+    })
+    await submitPeriod()
+    await waitForText('Lucro indeterminado')
+
+    const metric = container.querySelector('[aria-label="Indicadores do período"]')?.lastElementChild
+    const text = (document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+    expect(metric?.textContent).toContain('Lucro indeterminado')
+    expect(metric?.textContent).not.toContain('R$ 0,00')
+    expect(text).toContain('Faltam dados históricos para calcular o lucro com segurança.')
+    expect(container.querySelectorAll('[aria-label="Série diária de vendas"] > li')).toHaveLength(3)
+    expect((container.textContent ?? '').replace(/\u00a0/g, ' ')).toContain('R$ 0,00')
   })
 
   it('shows a clear no-sales state while retaining zero-valued daily entries', async () => {

@@ -40,26 +40,72 @@
   font-size: var(--font-caption-size);
 }
 
-.profitSummary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm);
-  margin: 0 0 var(--space-md);
-  padding: var(--space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
 }
 
-.profitSummary span,
-.profitMissing,
-.profitNotice {
+.metricCard {
+  min-width: 0;
+  height: 100%;
+}
+
+.metric {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.metricIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: var(--radius-md);
+}
+
+.primary {
+  color: var(--color-brand-primary-hover);
+  background: color-mix(in srgb, var(--color-brand-primary) 20%, transparent);
+}
+
+.success {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+}
+
+.warning {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+}
+
+.metricLabel,
+.metricNote {
+  font-size: var(--font-caption-size);
+}
+
+.metricLabel {
+  color: var(--color-text-secondary);
+}
+
+.metricValue {
+  color: var(--color-text-primary);
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.metricNote,
+.profitMissing {
   color: var(--color-warning);
 }
 
 .profitNotice {
   margin: 0;
+  color: var(--color-warning);
+  font-size: var(--font-caption-size);
 }
 
 .error {
@@ -171,6 +217,10 @@
 }
 
 @media (max-width: 700px) {
+  .metrics {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  }
+
   .filters {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -180,7 +230,11 @@
     justify-content: flex-start;
   }
 
+  .metricValue {
+    font-size: 1.35rem;
+  }
+
   .table {
-    min-width: 680px;
+    min-width: 920px;
   }
 }

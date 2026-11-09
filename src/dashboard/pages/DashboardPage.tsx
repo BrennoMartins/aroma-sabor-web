@@ -150,14 +150,22 @@ export function DashboardPage() {
             />
             <DashboardMetric
               title="Lucro bruto do dia"
-              value={summary.grossProfitComplete
-                ? currencyFormatter.format(summary.grossProfitKnownAmount)
-                : `Incompleto · conhecido ${currencyFormatter.format(summary.grossProfitKnownAmount)}`}
+              value={summary.grossProfitKnownAmount === null
+                ? 'Lucro indeterminado'
+                : summary.grossProfitComplete
+                  ? currencyFormatter.format(summary.grossProfitKnownAmount)
+                  : `Incompleto · conhecido ${currencyFormatter.format(summary.grossProfitKnownAmount)}`}
               icon={TrendingUp}
-              tone={summary.grossProfitComplete ? 'success' : 'warning'}
+              tone={summary.grossProfitComplete && summary.grossProfitKnownAmount !== null
+                ? 'success'
+                : 'warning'}
             />
           </section>
-          {!summary.grossProfitComplete ? (
+          {summary.grossProfitKnownAmount === null ? (
+            <p className={styles.profitNotice} role="status">
+              Faltam dados históricos para calcular o lucro com segurança.
+            </p>
+          ) : !summary.grossProfitComplete ? (
             <p className={styles.profitNotice} role="status">
               Lucro bruto incompleto: {summary.itemsWithoutHistoricalCost} item(ns) sem custo histórico.
             </p>

@@ -54,6 +54,28 @@ describe('getDashboardSummary', () => {
     await expect(getDashboardSummary()).resolves.toMatchObject({ currentTurn: null })
   })
 
+  it('accepts indeterminate gross profit without changing non-financial indicators', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: { ...summary, grossProfitKnownAmount: null },
+    })
+
+    await expect(getDashboardSummary()).resolves.toMatchObject({
+      grossProfitKnownAmount: null,
+      grossProfitComplete: true,
+      revenue: 58.5,
+      salesCount: 2,
+      averageTicket: 29.25,
+    })
+  })
+
+  it('preserves valid negative known profit values', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: { ...summary, grossProfitKnownAmount: -3.5, grossProfitComplete: false },
+    })
+
+    await expect(getDashboardSummary()).resolves.toMatchObject({ grossProfitKnownAmount: -3.5 })
+  })
+
   it('rejects malformed data instead of presenting it as real indicators', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({
       data: { ...summary, recentSales: [{ id: 104, total: '38.50', createdAt: 'invalid' }] },
