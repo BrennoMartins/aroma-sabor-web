@@ -56,12 +56,12 @@ describe('getDashboardSummary', () => {
 
   it('accepts indeterminate gross profit without changing non-financial indicators', async () => {
     vi.mocked(api.get).mockResolvedValueOnce({
-      data: { ...summary, grossProfitKnownAmount: null },
+      data: { ...summary, grossProfitKnownAmount: null, grossProfitComplete: false },
     })
 
     await expect(getDashboardSummary()).resolves.toMatchObject({
       grossProfitKnownAmount: null,
-      grossProfitComplete: true,
+      grossProfitComplete: false,
       revenue: 58.5,
       salesCount: 2,
       averageTicket: 29.25,

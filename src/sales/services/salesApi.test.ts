@@ -127,8 +127,21 @@ describe('salesApi', () => {
     await expect(getSaleById('41')).resolves.toEqual(zeroSale)
   })
 
-  it.each([null, 0])('preserva lucro bruto conhecido igual a %s', async (grossProfitKnownAmount) => {
-    const result = { ...sale, grossProfitKnownAmount }
+  it('preserva lucro bruto indeterminado quando falta custo histórico', async () => {
+    const result = {
+      ...sale,
+      grossProfitKnownAmount: null,
+      grossProfitComplete: false,
+      itemsWithoutHistoricalCost: 1,
+      items: [{ ...sale.items[0], unitCostPrice: null }],
+    }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: result })
+
+    await expect(getSaleById('41')).resolves.toEqual(result)
+  })
+
+  it('preserva lucro bruto conhecido igual a zero', async () => {
+    const result = { ...sale, grossProfitKnownAmount: 0 }
     vi.mocked(api.get).mockResolvedValueOnce({ data: result })
 
     await expect(getSaleById('41')).resolves.toEqual(result)
